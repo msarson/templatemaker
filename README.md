@@ -41,6 +41,7 @@ skills/clarion-template/        # the skill (SKILL.md + reference/)
 agents/clarion-template-pro.md  # the specialist subagent
 templates/                      # ready-to-register Clarion templates
   myPixel.tpl                   #   per-window diagnostic pixel (see below)
+  showLine.tpl                  #   Ctrl+Shift+P "where am I" hotkey (see below)
 README.md
 ```
 
@@ -58,6 +59,18 @@ lives in (app/EXE or DLL). Pressing **Ctrl+Shift+I** pops a message box with the
   and answering `EVENT:AlertKey`. Local-only code — no globals, so no multi-DLL handling needed.
 - Register it like any template (see below), then add **myPixel - Diagnostic Pixel (Global)** under
   Global → Extensions.
+
+### `templates/showLine.tpl` — Ctrl+Shift+P "where am I" hotkey
+A global (APPLICATION-scope) ABC extension that needs no per-procedure setup. On **every** windowed
+procedure it alerts **Ctrl+Shift+P**; pressing it pops a message telling you where you are: the
+**procedure** (the code you're in), the **control with focus** (its field number and USE variable), the
+**thread number**, and the host **binary** (EXE/DLL).
+
+- Prompts: master disable, a toggle to include the focused-control details, and a custom message title.
+- Implementation: a self-contained `CASE EVENT()` injected at the top of `WindowManager.TakeWindowEvent`
+  (PRIORITY 2000); `ALERT(CtrlShiftP)` on `EVENT:OpenWindow`, and on `EVENT:AlertKey` it reads `FOCUS()`
+  and `feq{PROP:Use}` to report the live focus. Local-only code — no globals, so no multi-DLL handling.
+- Register it, then add **showLine - Where-Am-I Hotkey (Global)** under Global → Extensions.
 
 ## Install
 
