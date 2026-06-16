@@ -1,0 +1,2 @@
+# Keep Markdown files LF in the repo regardless of platform
+*.md text eol=lf
