@@ -216,21 +216,27 @@ where it lives. Proof: `wbstd.CLW`/`ICSTD.CLW` prototype their own procedures ba
 `MODULE('self.clw')` wrapper in the defining module's own MAP yields "No matching prototype available",
 "Unknown identifier: <param>", and "Cannot RETURN value" all at once.
 
-To make `Func()` callable from any procedure in the app:
-1. Ship a **bare** prototype include `myFuncs.inc` — just the prototype lines, NO `MODULE()` wrapper, NO
-   `MAP`: `Func PROCEDURE(LONG p=0),LONG`.
-2. Ship the body module `myFuncs.clw` as `MEMBER()` with its OWN `MAP` that `INCLUDE('myFuncs.inc')` (so it
-   gets the bare prototype and the bodies match), then the procedure bodies. Implementation headers carry
-   NO default value (see gotcha above) — the default lives in the prototype and is applied at the call site.
-3. Template — wrap the include in a `MODULE()` block ONLY in the global map, and add the body to the build:
-   ```
-   #AT(%GlobalMap),WHERE(...)
-       MODULE('myFuncs.clw')
-   INCLUDE('myFuncs.inc'),ONCE
-       END
-   #ENDAT
-   #AT(%CustomGlobalDeclarations),WHERE(...)
-   #PROJECT('myFuncs.clw')
-   #ENDAT
-   ```
-The default value in the prototype is what makes the parameter omittable at the call site (`Func()`).
+**Best approach (self-contained, no external files, EXE targets):** define the function IN the program
+module and prototype it BARE in the global map — same module, so the bare prototype matches the body.
+This is the structure of the simplest single-file Clarion program and avoids all multi-module traps.
+```
+#AT(%GlobalMap),WHERE(...)                       #! prototype, bare = "in the program module"
+Func                 PROCEDURE(LONG p=0),LONG
+#ENDAT
+#AT(%ProgramProcedures),WHERE(...)               #! body, in the program module (EXE targets)
+Func  PROCEDURE(LONG p=0)
+loc:x  LONG
+  CODE
+  RETURN loc:x
+#ENDAT
+```
+The default in the prototype makes the parameter omittable at the call site (`Func()`). Note: the only
+corpus examples of a procedure with a default param (ABC class methods, e.g. ABBROWSE.CLW:2265) keep the
+`=0` in BOTH the prototype and the body header — mirror that (`=0` in both) for an exact match.
+`%ProgramProcedures` is EXE-only; for multi-DLL, emit the body into the shared/root target and export it.
+
+**Alternative (separate shipped module):** if you must keep bodies in a hand-maintained `.clw`, the
+defining module must see a BARE prototype (its own `MAP` `INCLUDE`s a bare `.inc`), and the global map
+must reference it WRAPPED in `MODULE('myFuncs.clw')`, plus `#PROJECT('myFuncs.clw')` to compile it. This
+works but is fiddly (MEMBER()/MODULE() matching) — prefer the program-module approach above unless you
+have a reason not to.

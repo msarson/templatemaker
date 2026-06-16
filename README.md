@@ -43,9 +43,7 @@ templates/                      # ready-to-register Clarion templates
   myPixel.tpl                   #   per-window diagnostic pixel (see below)
   showLine.tpl                  #   Ctrl+Shift+P "where am I" hotkey (see below)
   myFuncs/                      #   global function library (see below)
-    myFuncs.tpl                 #     the wiring template
-    myFuncs.inc                 #     prototypes (included in the global MAP)
-    myFuncs.clw                 #     function bodies (compiled module)
+    myFuncs.tpl                 #     self-contained: prototypes + bodies in one template
 README.md
 ```
 
@@ -78,10 +76,11 @@ procedure it alerts **Ctrl+Shift+P**; pressing it pops a message telling you whe
 
 ### `templates/myFuncs/` — global function library
 A global (APPLICATION-scope) ABC extension that makes a growing set of utility **functions** callable
-from anywhere in the app, with no per-procedure setup. The template wires two shipped source files in:
-`myFuncs.inc` (prototypes, included inside the global `MAP`) and `myFuncs.clw` (the function bodies,
-added to the project for compilation). Grow the library by adding a prototype to the `.inc` and a body
-to the `.clw` — the template never changes.
+from anywhere in the app, with no per-procedure setup and **no external source files**. The template
+is self-contained: it adds each prototype **bare** to the program's global `MAP` (`#AT(%GlobalMap)`)
+and writes each function **body into the program module itself** (`#AT(%ProgramProcedures)`). Prototype
+and body in the same module is the simplest, always-valid Clarion structure. Grow the library by adding
+one prototype line and one body to `myFuncs.tpl` — nothing else to wire.
 
 **First function — `weekNumber(<date>),LONG`:** returns the **ISO‑8601 (European)** week number. The
 date parameter is omittable; call `weekNumber()` and it uses today's date. ISO rules: weeks start
@@ -92,9 +91,8 @@ wk  = weekNumber()              ! this week's ISO number
 wk2 = weekNumber(myOrder:Date)  ! ISO week of a specific date
 ```
 
-Install: copy `myFuncs.inc` and `myFuncs.clw` into a folder on the app's redirection/source path,
-register `myFuncs.tpl`, then add **myFuncs - Global Function Library (Global)** under Global →
-Extensions.
+Install: register `myFuncs.tpl`, then add **myFuncs - Global Function Library (Global)** under
+Global → Extensions, generate, and build. (No source files to copy — everything is generated.)
 
 ## Install
 

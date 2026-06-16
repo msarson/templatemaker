@@ -1,35 +1,43 @@
-#TEMPLATE(myFuncs,'myFuncs - Global Function Library v1.00'),FAMILY('ABC')
+#TEMPLATE(myFuncs,'myFuncs - Global Function Library v1.10'),FAMILY('ABC')
 #!-----------------------------------------------------------------------------!
 #!  myFuncs  -  (c) 2026 Reddin Assessments                                    !
 #!                                                                             !
 #!  A GLOBAL (APPLICATION-scope) extension that makes a growing library of      !
-#!  utility FUNCTIONS callable from anywhere in the app. It wires two shipped   !
-#!  source files into the application:                                          !
-#!    * myFuncs.inc - the prototypes, INCLUDEd inside the global MAP            !
-#!    * myFuncs.clw - the function bodies, compiled into the project            !
+#!  utility FUNCTIONS callable from anywhere in the app, with no per-procedure  !
+#!  setup and NO external source files.                                         !
 #!                                                                             !
-#!  Add the extension once (Global -> Extensions); every function then resolves !
-#!  app-wide with no per-procedure setup. To grow the library, add a prototype  !
-#!  to myFuncs.inc and a body to myFuncs.clw - this template needs no change.   !
+#!  How it works (the robust, self-contained pattern):                         !
+#!    * #AT(%GlobalMap)        - adds each prototype, BARE, to the program's    !
+#!                               global MAP. Bare (no MODULE wrapper) means      !
+#!                               "defined in the program module", and it makes   !
+#!                               the function callable from every procedure.    !
+#!    * #AT(%ProgramProcedures)- writes each function BODY into the program     !
+#!                               module itself. Prototype + body in the SAME    !
+#!                               module is the simplest, always-valid Clarion    !
+#!                               structure (exactly like a single-file program).!
 #!                                                                             !
-#!  Mechanism / corpus citations:                                              !
-#!    * "Inside the Global Map" embed %GlobalMap (ABPROGRM.TPW:195); the        !
-#!      include-functions-into-the-map pattern is proven by office.tpl:324.     !
-#!    * Adding a source module for compilation via #PROJECT('x.clw') -          !
-#!      NYS_CalendarPro.tpl:51.                                                 !
-#!    * Empty MEMBER() module - ABWINDOW.CLW:1.                                 !
+#!  This avoids the multi-module MEMBER()/MODULE() prototype-matching traps:    !
+#!  a procedure DEFINED in module X must NOT be prototyped as MODULE('X') in     !
+#!  that same module (that means "defined elsewhere") - which is why the        !
+#!  earlier separate-.clw approach failed to compile.                          !
+#!                                                                             !
+#!  To add a function: add ONE prototype line under #AT(%GlobalMap) and ONE     !
+#!  body under #AT(%ProgramProcedures). Nothing else to wire.                   !
 #!                                                                             !
 #!  Functions currently provided:                                             !
 #!    weekNumber(<date>),LONG  - ISO-8601 (European) week number; the date is   !
 #!                               omittable and defaults to today.               !
 #!                                                                             !
-#!  Multi-DLL: prototypes live in the global MAP and the body is a normal       !
-#!  compiled module, so the functions link like any program procedure. If the   !
-#!  same functions are needed across several DLLs, compile myFuncs.clw into the !
-#!  shared/root target and export the names there (standard cross-DLL handling).!
+#!  Corpus citations: %GlobalMap = "Inside the Global Map" (ABPROGRM.TPW:195);  !
+#!  %ProgramProcedures = program-module procedure definitions, EXE targets      !
+#!  (ABPROGRM.TPW:40). Weekday math: date %% 7 -> 0=Sun..6=Sat (ICSTD.CLW:355). !
+#!                                                                             !
+#!  Multi-DLL: the bodies are emitted only into EXE targets (%ProgramProcedures !
+#!  is EXE-only). For a multi-DLL app where several DLLs need these functions,  !
+#!  compile them into the shared/root target and export the names there.        !
 #!-----------------------------------------------------------------------------!
 #SYSTEM
-  #EQUATE(%myFuncsTPLVersion,'1.00')
+  #EQUATE(%myFuncsTPLVersion,'1.10')
 #!-----------------------------------------------------------------------------!
 #EXTENSION(myFuncsGlobal,'myFuncs - Global Function Library (Global)'),APPLICATION,HLP('~myFuncs.htm')
 #SHEET,HSCROLL
@@ -44,22 +52,40 @@
     #BOXED('Included functions')
       #DISPLAY('weekNumber(<date>)  -  ISO-8601 week number (date defaults to today)')
     #ENDBOXED
-    #DISPLAY('Copy myFuncs.inc and myFuncs.clw into a folder on the app''s')
-    #DISPLAY('redirection / source path so the compiler can find them.')
   #ENDTAB
 #ENDSHEET
 #!-----------------------------------------------------------------------------!
-#!  Prototypes: include the prototype map fragment INSIDE the global MAP, so    !
-#!  every function is callable from any procedure in the app.                   !
+#!  PROTOTYPES - bare, inside the program's global MAP (callable app-wide).     !
 #!-----------------------------------------------------------------------------!
 #AT(%GlobalMap),WHERE(%myFuncsDisable=0),DESCRIPTION('myFuncs - global function prototypes')
-    MODULE('myFuncs.clw')
-INCLUDE('myFuncs.inc'),ONCE
-    END
+weekNumber           PROCEDURE(LONG pDate=0),LONG  !ISO-8601 (European) week number; pDate omitted/0 = today
 #ENDAT
 #!-----------------------------------------------------------------------------!
-#!  Bodies: add the source module to the project so it is compiled and linked.  !
+#!  BODIES - defined in the program module itself.                             !
 #!-----------------------------------------------------------------------------!
-#AT(%CustomGlobalDeclarations),WHERE(%myFuncsDisable=0),DESCRIPTION('myFuncs - compile function module')
-#PROJECT('myFuncs.clw')
+#AT(%ProgramProcedures),WHERE(%myFuncsDisable=0),DESCRIPTION('myFuncs - global function bodies')
+!=============================================================================
+! weekNumber - ISO-8601 (European) week number of pDate (omitted/0 => today).
+!   ISO weeks start Monday; week 1 is the week containing the year's first
+!   Thursday. The Thursday of a date's week decides which year owns the week.
+!   date % 7 gives 0=Sun..6=Sat (Clarion epoch: standard date 4 = Thu 01-Jan-1801).
+!=============================================================================
+weekNumber  PROCEDURE(LONG pDate=0)
+loc:Date      LONG                                    ! the date we are working on
+loc:M         LONG                                    ! date % 7  (0=Sun .. 6=Sat)
+loc:ISODow    LONG                                    ! ISO weekday: Mon=1 .. Sun=7
+loc:Thursday  LONG                                    ! the Thursday of loc:Date's week
+loc:ISOYear   LONG                                    ! the year that owns this week
+loc:Jan1      LONG                                    ! 1st January of loc:ISOYear
+  CODE
+  loc:Date = pDate
+  IF ~loc:Date                                        ! no date passed -> use today
+    loc:Date = TODAY()
+  END
+  loc:M      = loc:Date % 7                            ! 0=Sun,1=Mon,...,6=Sat
+  loc:ISODow = CHOOSE(loc:M = 0, 7, loc:M)             ! Sunday(0) -> 7, else Mon..Sat = 1..6
+  loc:Thursday = loc:Date + (4 - loc:ISODow)           ! move to Thursday of this ISO week
+  loc:ISOYear  = YEAR(loc:Thursday)                    ! the Thursday decides the week's year
+  loc:Jan1     = DATE(1, 1, loc:ISOYear)
+  RETURN INT((loc:Thursday - loc:Jan1) / 7) + 1
 #ENDAT
