@@ -82,13 +82,17 @@ and writes each function **body into the program module itself** (`#AT(%ProgramP
 and body in the same module is the simplest, always-valid Clarion structure. Grow the library by adding
 one prototype line and one body to `myFuncs.tpl` — nothing else to wire.
 
-**First function — `weekNumber(<date>),LONG`:** returns the **ISO‑8601 (European)** week number. The
-date parameter is omittable; call `weekNumber()` and it uses today's date. ISO rules: weeks start
-Monday, week 1 is the week containing the year's first Thursday. Example:
+**Functions provided** (both take an omittable date that defaults to today):
+- **`weekNumber(<date>),LONG`** — **ISO‑8601 (European)** week number. Weeks start Monday; week 1 is the
+  week containing the year's first Thursday (the week with Jan 4). Early‑January dates can fall in week
+  52/53 of the *prior* year.
+- **`weekNumberUS(<date>),LONG`** — **US / North‑American** week number. Weeks start Sunday; week 1 is the
+  week containing January 1st, so Jan 1 is always in week 1.
 
 ```clarion
 wk  = weekNumber()              ! this week's ISO number
 wk2 = weekNumber(myOrder:Date)  ! ISO week of a specific date
+us  = weekNumberUS(myOrder:Date)! US week of the same date (can differ by one)
 ```
 
 Install: register `myFuncs.tpl`, then add **myFuncs - Global Function Library (Global)** under

@@ -1,4 +1,4 @@
-#TEMPLATE(myFuncs,'myFuncs - Global Function Library v1.10'),FAMILY('ABC')
+#TEMPLATE(myFuncs,'myFuncs - Global Function Library v1.20'),FAMILY('ABC')
 #!-----------------------------------------------------------------------------!
 #!  myFuncs  -  (c) 2026 Reddin Assessments                                    !
 #!                                                                             !
@@ -25,8 +25,14 @@
 #!  body under #AT(%ProgramProcedures). Nothing else to wire.                   !
 #!                                                                             !
 #!  Functions currently provided:                                             !
-#!    weekNumber(<date>),LONG  - ISO-8601 (European) week number; the date is   !
-#!                               omittable and defaults to today.               !
+#!    weekNumber(<date>),LONG    - ISO-8601 (European) week number. Monday-start;!
+#!                                 week 1 = the week of the year's first Thursday!
+#!                                 (the week containing Jan 4). Date defaults to !
+#!                                 today. Range 1..53; early-Jan dates can be     !
+#!                                 wk 52/53 of the PRIOR year.                   !
+#!    weekNumberUS(<date>),LONG  - US / North-American week number. Sunday-start; !
+#!                                 week 1 = the week containing Jan 1, so Jan 1   !
+#!                                 is ALWAYS week 1. Date defaults to today.      !
 #!                                                                             !
 #!  Corpus citations: %GlobalMap = "Inside the Global Map" (ABPROGRM.TPW:195);  !
 #!  %ProgramProcedures = program-module procedure definitions, EXE targets      !
@@ -50,7 +56,9 @@
   #ENDTAB
   #TAB('&Functions')
     #BOXED('Included functions')
-      #DISPLAY('weekNumber(<date>)  -  ISO-8601 week number (date defaults to today)')
+      #DISPLAY('weekNumber(<date>)    -  ISO-8601 / European week number (Mon start, wk1 = first Thursday)')
+      #DISPLAY('weekNumberUS(<date>)  -  US week number (Sun start, Jan 1 always in week 1)')
+      #DISPLAY('Both omit the date to use today.')
     #ENDBOXED
   #ENDTAB
 #ENDSHEET
@@ -61,7 +69,8 @@
 #! SHORT prototype form (name(params),return) - has no column-1 label, so it
 #! survives the indentation that %GlobalMap applies to embed content. The long
 #! form (weekNumber PROCEDURE(...)) would need its label in column 1 and break.
-weekNumber(LONG pDate=0),LONG  !ISO-8601 (European) week number; pDate omitted/0 = today
+weekNumber(LONG pDate=0),LONG    !ISO-8601 (European) week number; pDate omitted/0 = today
+weekNumberUS(LONG pDate=0),LONG  !US week number (Sunday start, Jan 1 = week 1); pDate omitted/0 = today
 #ENDAT
 #!-----------------------------------------------------------------------------!
 #!  BODIES - defined in the program module itself.                             !
@@ -91,4 +100,26 @@ loc:Jan1      LONG                                    ! 1st January of loc:ISOYe
   loc:ISOYear  = YEAR(loc:Thursday)                    ! the Thursday decides the week's year
   loc:Jan1     = DATE(1, 1, loc:ISOYear)
   RETURN INT((loc:Thursday - loc:Jan1) / 7) + 1
+!=============================================================================
+! weekNumberUS - US / North-American week number of pDate (omitted/0 => today).
+!   Weeks start SUNDAY; week 1 is the week containing January 1st, so Jan 1 is
+!   always in week 1. We find the Sunday that starts pDate's week and the Sunday
+!   that starts week 1 (the Sunday on/before Jan 1), then count 7-day blocks.
+!   date % 7 gives days-since-Sunday (0=Sun..6=Sat), so date-(date%7) = that
+!   week's Sunday.
+!=============================================================================
+weekNumberUS  PROCEDURE(LONG pDate=0)
+loc:Date      LONG                                    ! the date we are working on
+loc:Year      LONG                                    ! calendar year of loc:Date
+loc:WeekSun   LONG                                    ! Sunday that starts loc:Date's week
+loc:Jan1Sun   LONG                                    ! Sunday that starts week 1 (on/before Jan 1)
+  CODE
+  loc:Date = pDate
+  IF ~loc:Date                                        ! no date passed -> use today
+    loc:Date = TODAY()
+  END
+  loc:WeekSun = loc:Date - (loc:Date % 7)              ! back up to this week's Sunday
+  loc:Year    = YEAR(loc:Date)
+  loc:Jan1Sun = DATE(1,1,loc:Year) - (DATE(1,1,loc:Year) % 7)  ! Sunday on/before Jan 1
+  RETURN INT((loc:WeekSun - loc:Jan1Sun) / 7) + 1
 #ENDAT
