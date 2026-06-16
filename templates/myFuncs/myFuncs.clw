@@ -17,7 +17,7 @@
 !  Weekday math uses Clarion's epoch (standard date 4 = 01-Jan-1801 = a        !
 !  Thursday), so  date % 7  gives 0=Sun,1=Mon,...,6=Sat.                       !
 !=============================================================================!
-weekNumber  PROCEDURE(LONG pDate=0)
+weekNumber  PROCEDURE(LONG pDate)                     ! default value lives in the prototype (myFuncs.inc), NOT here
 loc:Date      LONG                                    ! the date we are working on
 loc:M         LONG                                    ! date % 7  (0=Sun .. 6=Sat)
 loc:ISODow    LONG                                    ! ISO weekday: Mon=1 .. Sun=7

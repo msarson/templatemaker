@@ -199,3 +199,20 @@ its per-instance settings.
 - [ ] `<39>` (not a bare `'`) for quotes inside string attributes/defaults.
 - [ ] Block terminators balanced (`#ENDAT`, `#ENDIF`/`#END`, `#ENDFOR`, `#ENDTAB`, `#ENDSHEET`, …).
 - [ ] `.tpl` `#INCLUDE`s all its `.tpw` parts; `#TEMPLATE` header present and at column 1.
+- [ ] Default parameter values (`=0`, `=1`) appear ONLY in the **prototype** (the MAP / `.inc`),
+      never in a free-standing procedure's **implementation** header. Write the body as
+      `weekNumber PROCEDURE(LONG pDate)` even though the prototype is `weekNumber PROCEDURE(LONG pDate=0),LONG`.
+      (CLASS *methods* are the exception — their impl mirrors the CLASS prototype and keeps the default.)
+      Getting this wrong yields "No matching prototype available", "Unknown identifier: <param>", and
+      "Cannot RETURN value from procedure" all at once.
+
+## Adding a global, callable utility function via template
+
+To make `Func()` callable from any procedure in the app:
+1. Ship a prototype include (e.g. `myFuncs.inc`) holding a `MODULE('myFuncs.clw') ... END` block with the
+   prototype(s): `Func PROCEDURE(LONG p=0),LONG`.
+2. Ship the body module `myFuncs.clw` as `MEMBER()` with its OWN `MAP` that `INCLUDE`s the prototype file,
+   then the procedure bodies (implementation headers carry NO default — see gotcha above).
+3. Template: `#AT(%GlobalMap),WHERE(...)` → `INCLUDE('myFuncs.inc'),ONCE` (prototypes visible app-wide),
+   and `#AT(%CustomGlobalDeclarations),WHERE(...)` → `#PROJECT('myFuncs.clw')` (compile the bodies).
+The default value in the prototype is what makes the parameter omittable at the call site (`Func()`).
