@@ -42,6 +42,7 @@ agents/clarion-template-pro.md  # the specialist subagent
 templates/                      # ready-to-register Clarion templates
   myPixel.tpl                   #   per-window diagnostic pixel (see below)
   showLine.tpl                  #   Ctrl+Shift+P "where am I" hotkey (see below)
+  identifier.tpl                #   Ctrl+Shift+I shows the procedure name
   myFuncs/                      #   global function library (see below)
     myFuncs.tpl                 #     self-contained: prototypes + bodies in one template
   myPie/                        #   pie chart for a window (see below)
@@ -75,6 +76,13 @@ procedure it alerts **Ctrl+Shift+P**; pressing it pops a message telling you whe
   (PRIORITY 2000); `ALERT(CtrlShiftP)` on `EVENT:OpenWindow`, and on `EVENT:AlertKey` it reads `FOCUS()`
   and `feq{PROP:Use}` to report the live focus. Local-only code — no globals, so no multi-DLL handling.
 - Register it, then add **showLine - Where-Am-I Hotkey (Global)** under Global → Extensions.
+
+### `templates/identifier.tpl` — Ctrl+Shift+I shows the procedure name
+A global (APPLICATION-scope) ABC extension, no per-procedure setup. It alerts **Ctrl+Shift+I** on every
+windowed procedure; pressing it pops a message box with the current **procedure name** (baked in at
+generation time via `%Procedure`). Same proven injection as the other hotkey templates (self-contained
+`CASE EVENT()` at the top of `WindowManager.TakeWindowEvent`). Register it and add **identifier - Show
+Procedure Name (Ctrl+Shift+I)** under Global → Extensions.
 
 ### `templates/myFuncs/` — global function library
 A global (APPLICATION-scope) ABC extension that makes a growing set of utility **functions** callable
