@@ -27,7 +27,7 @@
     #DISPLAY('Right-click a browse/list at run time for a popup menu:')
     #DISPLAY('   Change Font...        - pick a font for that list')
     #DISPLAY('   Reset to Default Font - revert it to the global default')
-    #DISPLAY('Ctrl + mouse wheel over a list nudges its font size up/down by 1 point.')
+    #DISPLAY('With a list focused, Ctrl+Plus / Ctrl+Minus change its font size by 1 point.')
     #DISPLAY('Each list is saved in its OWN INI section and re-applied on reopen.')
   #ENDTAB
 #ENDSHEET
@@ -116,45 +116,41 @@ loc:Size  LONG
 #ENDAT
 #!-----------------------------------------------------------------------------------
 #! TakeWindowEvent: TakeWindowEvent runs only when FIELD()=0 (ABWINDOW.clw:720).
-#! On EVENT:OpenWindow apply fonts to every LIST and arm a right-click alert (idx 250;
-#! ABC's own browse uses 249 = MouseRightIndex, so 250 does not collide).
+#! On EVENT:OpenWindow apply fonts to every LIST and ARM the alerts: right-click
+#! (idx 250; ABC's browse uses 249, so no collision) plus Ctrl-Plus / Ctrl-Minus
+#! (idx 251/252). Keyboard alerts MUST be armed for EVENT:AlertKey to fire.
 #! Self-contained CASE at PRIORITY 2000 (above framework CASE at 2500); never RETURN.
 #!-----------------------------------------------------------------------------------
-#AT(%WindowManagerMethodCodeSection,'TakeWindowEvent','(),BYTE'),PRIORITY(2000),WHERE(%mfcDisable=0 AND %Window),DESCRIPTION('myFontChanger - apply fonts + arm right-click')
+#AT(%WindowManagerMethodCodeSection,'TakeWindowEvent','(),BYTE'),PRIORITY(2000),WHERE(%mfcDisable=0 AND %Window),DESCRIPTION('myFontChanger - apply fonts + arm keys')
   CASE EVENT()
   OF EVENT:OpenWindow
 #FOR(%Control),WHERE(%ControlType='LIST')
     myFontApply(%Control, '%Procedure' & '_' & '%Control', '%mfcIni', '%mfcDefName', %mfcDefSize)
     %Control{PROP:Alrt,250} = MouseRightUp
+    %Control{PROP:Alrt,251} = CtrlPlus
+    %Control{PROP:Alrt,252} = CtrlMinus
 #ENDFOR
   END
 #ENDAT
 #!-----------------------------------------------------------------------------------
 #! TakeFieldEvent: list events arrive here with FIELD()=the list (ABWINDOW.clw:720).
-#!   - Right-click (MouseRightUp, armed in TakeWindowEvent) -> font popup menu.
-#!   - Ctrl+mouse-wheel (EVENT:ScrollUp/Down + CtrlKeyPressed) -> nudge size by 1
-#!     and RETURN Level:Notify so the list does NOT also scroll a row.
+#! All triggers are ARMED keys -> EVENT:AlertKey (same mechanism as the right-click,
+#! which works): MouseRightUp -> font menu; Ctrl-Plus -> +1; Ctrl-Minus -> -1.
 #! Self-contained CASE at PRIORITY 2000 (above framework CASE at ABWINDOW.TPW:724
-#! PRIORITY 2500). We only RETURN for the Ctrl+wheel case we consume.
+#! PRIORITY 2500); never RETURN (alerted keys are not passed to default handling).
 #!-----------------------------------------------------------------------------------
-#AT(%WindowManagerMethodCodeSection,'TakeFieldEvent','(),BYTE'),PRIORITY(2000),WHERE(%mfcDisable=0 AND %Window),DESCRIPTION('myFontChanger - right-click + Ctrl-wheel')
+#AT(%WindowManagerMethodCodeSection,'TakeFieldEvent','(),BYTE'),PRIORITY(2000),WHERE(%mfcDisable=0 AND %Window),DESCRIPTION('myFontChanger - right-click + Ctrl-Plus/Minus')
   CASE FIELD()
 #FOR(%Control),WHERE(%ControlType='LIST')
   OF %Control
-    CASE EVENT()
-    OF EVENT:AlertKey
-      IF KEYCODE() = MouseRightUp
+    IF EVENT() = EVENT:AlertKey
+      CASE KEYCODE()
+      OF MouseRightUp
         myFontChange(%Control, '%Procedure' & '_' & '%Control', '%mfcIni', '%mfcDefName', %mfcDefSize)
-      END
-    OF EVENT:ScrollUp
-      IF BAND(KEYSTATE(),CtrlKeyPressed)
+      OF CtrlPlus
         myFontBump(%Control, '%Procedure' & '_' & '%Control', '%mfcIni', 1)
-        RETURN Level:Notify
-      END
-    OF EVENT:ScrollDown
-      IF BAND(KEYSTATE(),CtrlKeyPressed)
+      OF CtrlMinus
         myFontBump(%Control, '%Procedure' & '_' & '%Control', '%mfcIni', -1)
-        RETURN Level:Notify
       END
     END
 #ENDFOR
