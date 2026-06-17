@@ -15,7 +15,6 @@
 #!  No external .inc/.clw required. EXE targets.
 #!-----------------------------------------------------------------------------------
 #EXTENSION(myFontChanger,'myFontChanger - global per-list font picker'),APPLICATION
-#DECLARE(%mfcKey)
 #SHEET,ADJUST
   #TAB('&General')
     #BOXED('myFontChanger')
@@ -104,8 +103,7 @@ loc:Choice     SIGNED
   CASE EVENT()
   OF EVENT:OpenWindow
 #FOR(%Control),WHERE(%ControlType='LIST')
-    #SET(%mfcKey,%Procedure & '_' & %mfcStripQ())
-    myFontApply(%Control, '%mfcKey', '%mfcIni', '%mfcDefName', %mfcDefSize)
+    myFontApply(%Control, '%(%mfcMakeKey())', '%mfcIni', '%mfcDefName', %mfcDefSize)
     %Control{PROP:Alrt,250} = MouseRightUp
 #ENDFOR
   END
@@ -121,26 +119,28 @@ loc:Choice     SIGNED
     IF KEYCODE() = MouseRightUp
       CASE FIELD()
 #FOR(%Control),WHERE(%ControlType='LIST')
-    #SET(%mfcKey,%Procedure & '_' & %mfcStripQ())
       OF %Control
-        myFontChange(%Control, '%mfcKey', '%mfcIni', '%mfcDefName', %mfcDefSize)
+        myFontChange(%Control, '%(%mfcMakeKey())', '%mfcIni', '%mfcDefName', %mfcDefSize)
 #ENDFOR
       END
     END
   END
 #ENDAT
 #!-----------------------------------------------------------------------------------
-#! Helper #GROUP: strip the leading '?' from %Control to build a regeneration-stable
-#! INI key. MUST live at the END of the file: a #GROUP has NO end-marker, so it
-#! swallows every following line until the next section directive - an #AT placed
-#! after a #GROUP errors "#AT not valid in a #GROUP". Groups resolve by forward
-#! reference, so the calls earlier in the file still work.
+#! Helper #GROUP: build the regeneration-stable INI key (procedure + control name,
+#! '?' stripped) and RETURN it. Called inline as '%(%mfcMakeKey())' so the key is
+#! computed at generation time without a #DECLARE'd symbol - an extension-level
+#! #DECLARE'd symbol is not in scope during per-procedure #AT generation and gives
+#! "GEN: Unknown Variable". The group reads %Procedure/%Control from the #FOR context.
+#! MUST live at the END of the file: a #GROUP has NO end-marker, so it swallows
+#! every following line until the next section directive - an #AT placed after a
+#! #GROUP errors "#AT not valid in a #GROUP". Calls resolve by forward reference.
 #!-----------------------------------------------------------------------------------
-#GROUP(%mfcStripQ)
+#GROUP(%mfcMakeKey)
   #IF(SUB(%Control,1,1)='?')
-    #RETURN(SUB(%Control,2,LEN(CLIP(%Control))))
+    #RETURN(%Procedure & '_' & SUB(%Control,2,LEN(CLIP(%Control))))
   #ELSE
-    #RETURN(%Control)
+    #RETURN(%Procedure & '_' & %Control)
   #ENDIF
 #!-----------------------------------------------------------------------------------
 #! End myFontChanger
