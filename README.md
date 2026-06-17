@@ -151,3 +151,8 @@ Claude cannot run AppGen. After it writes a template:
 2. IDE → **Setup ▸ Template Registry ▸ Register** the `.tpl`.
 3. Add the extension/control to a test procedure (or the app, for `APPLICATION` scope).
 4. Fill prompts, **Generate**, and confirm the produced `.clw` compiles.
+
+## License
+
+Released under the [MIT License](LICENSE) — © 2026 Reddin Assessments. Free to use, modify, and
+distribute; provided "as is" without warranty.
