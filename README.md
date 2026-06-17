@@ -157,8 +157,9 @@ A single global (APPLICATION-scope) ABC extension, no per-procedure setup:
 
 It adds two helpers to the program module (`myFontApply`, `myFontChange`) and injects into
 `WindowManager.TakeWindowEvent` (apply fonts + arm the right-click on `EVENT:OpenWindow`) and
-`TakeFieldEvent` (a list right-click arrives there with `FIELD()` = the list). Uses `SETFONT`,
-`FONTDIALOG`, `GETINI`/`PUTINI`, and alerts `MouseRightUp` (the same right-click key ABC browses use).
+`TakeFieldEvent` (list events arrive there with `FIELD()` = the list). Uses `SETFONT`, `FONTDIALOG`,
+`GETINI`/`PUTINI`, and armed-key alerts (`MouseRightUp` for the menu, `CtrlPlus`/`CtrlMinus` for sizing).
+The extension has a **General** tab (default font, size, INI name) and an **Instructions** tab.
 Register it, add **myFontChanger - global per-list font picker** under Global → Extensions, set the
 default font + INI name, generate and build.
 
