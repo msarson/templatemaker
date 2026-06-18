@@ -22,6 +22,7 @@ public partial class MainWindow
     double PreviewFactor => _previewWidth / 480.0;
     TplElement? _dragPreviewEl; Point _dragPreviewStart; bool _dragPreviewing;
     TplElement? _dragTab; Point _dragTabStart; bool _dragTabbing;
+    Border? _tabDropMark;   // insertion caret shown while dragging a tab
 
     void PreviewWidth_Changed(object s, SelectionChangedEventArgs e)
     {
@@ -255,18 +256,61 @@ public partial class MainWindow
 
     void Tab_HeaderMove(object s, MouseEventArgs e)
     {
-        if (_dragTab == null || e.LeftButton != MouseButtonState.Pressed || _dragTabbing) return;
+        if (_dragTab == null || e.LeftButton != MouseButtonState.Pressed) return;
         var p = e.GetPosition(canvas);
-        if (Math.Abs(p.X - _dragTabStart.X) > 6 || Math.Abs(p.Y - _dragTabStart.Y) > 6)
+        if (!_dragTabbing)
         {
+            if (Math.Abs(p.X - _dragTabStart.X) <= 6 && Math.Abs(p.Y - _dragTabStart.Y) <= 6) return;
             _dragTabbing = true;
             if (s is Border hdr) { hdr.CaptureMouse(); hdr.Opacity = 0.5; }
         }
+        ShowTabDropMark(p);   // caret follows the cursor over the tab strip
+    }
+
+    // Draw a vertical caret at the edge of the tab under the cursor (the spot the dragged tab will land).
+    void ShowTabDropMark(Point ptCanvas)
+    {
+        TabItem? ti = null;
+        if (canvas.InputHitTest(ptCanvas) is DependencyObject hit)
+            for (DependencyObject? d = hit; d != null; d = VisualTreeHelper.GetParent(d))
+                if (d is TabItem t) { ti = t; break; }
+
+        if (ti == null || (ti.Tag is TplElement tt && tt == _dragTab)) { HideTabDropMark(); return; }
+
+        bool after; Point tl;
+        try
+        {
+            after = canvas.TransformToVisual(ti).Transform(ptCanvas).X > ti.ActualWidth / 2;
+            tl = ti.TransformToVisual(canvas).Transform(new Point(0, 0));
+        }
+        catch { HideTabDropMark(); return; }
+
+        if (_tabDropMark == null)
+        {
+            _tabDropMark = new Border
+            {
+                Width = 3, IsHitTestVisible = false,
+                Background = new SolidColorBrush(Color.FromRgb(220, 70, 60)),
+                CornerRadius = new CornerRadius(1)
+            };
+            canvas.Children.Add(_tabDropMark);
+        }
+        Panel.SetZIndex(_tabDropMark, 1000);
+        _tabDropMark.Height = Math.Max(10, ti.ActualHeight);
+        Canvas.SetLeft(_tabDropMark, tl.X + (after ? ti.ActualWidth : 0) - 1.5);
+        Canvas.SetTop(_tabDropMark, tl.Y);
+        _tabDropMark.Visibility = Visibility.Visible;
+    }
+
+    void HideTabDropMark()
+    {
+        if (_tabDropMark != null) { canvas.Children.Remove(_tabDropMark); _tabDropMark = null; }
     }
 
     void Tab_HeaderUp(object s, MouseButtonEventArgs e)
     {
         if (s is Border hdr) { hdr.ReleaseMouseCapture(); hdr.Opacity = 1; }
+        HideTabDropMark();
         var dragged = _dragTab; bool was = _dragTabbing;
         _dragTab = null; _dragTabbing = false;
         if (!was || dragged == null || _component == null) return;
