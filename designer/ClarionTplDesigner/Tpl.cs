@@ -52,40 +52,122 @@ public class TplElement
     };
 }
 
-public class TplDocument
+/// <summary>One physical template file (the main .tpl or an #INCLUDE'd .tpw).</summary>
+public class TplFile
 {
     public string Path = "";
     public string Newline = "\r\n";
     public string[] Lines = Array.Empty<string>();
-    public readonly List<TplElement> Tabs = new();   // top-level tabs of the first #SHEET
+    public bool Included;             // pulled in via #INCLUDE (vs the main .tpl)
+}
+
+/// <summary>One template component (#EXTENSION/#CONTROL/#PROCEDURE/#CODE/#GROUP/…) and its prompt UI.</summary>
+public class TplComponent
+{
+    public string Kind = "";         // EXTENSION / CONTROL / PROCEDURE / CODE / GROUP / UTILITY / TEMPLATE / …
+    public string Name = "";
+    public string Description = "";
+    public int FileIndex;            // index into TplDocument.Files
+    public int StartLine, EndLine;   // line range within that file
+    public readonly List<TplElement> Tabs = new();
+    public bool HasSheet => Tabs.Count > 0;
+}
+
+public class TplDocument
+{
+    public string Path = "";                       // the main .tpl
+    public readonly List<TplFile> Files = new();
+    public readonly List<TplComponent> Components = new();
+    public string Newline => Files.Count > 0 ? Files[0].Newline : "\r\n";
 }
 
 public static class TplParser
 {
+    static readonly HashSet<string> ComponentKinds = new(StringComparer.OrdinalIgnoreCase)
+        { "TEMPLATE", "EXTENSION", "CONTROL", "PROCEDURE", "CODE", "GROUP", "UTILITY", "APPLICATION", "MODULE" };
+
     public static TplDocument Parse(string path)
     {
-        var text = File.ReadAllText(path);
+        var doc = new TplDocument { Path = path };
+        LoadFile(doc, path, included: false, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+        return doc;
+    }
+
+    static void LoadFile(TplDocument doc, string path, bool included, HashSet<string> visited)
+    {
+        string full;
+        try { full = System.IO.Path.GetFullPath(path); } catch { return; }
+        if (!visited.Add(full) || !File.Exists(full)) return;
+
+        var text = File.ReadAllText(full);
         var nl = text.Contains("\r\n") ? "\r\n" : "\n";
         var lines = text.Split(new[] { nl }, StringSplitOptions.None);
+        int fileIndex = doc.Files.Count;
+        doc.Files.Add(new TplFile { Path = full, Newline = nl, Lines = lines, Included = included });
 
-        var doc = new TplDocument { Path = path, Newline = nl, Lines = lines };
+        ParseComponents(doc, fileIndex, lines);
+
+        // follow #INCLUDE('xxx.tpw') (ignoring commented #! lines), relative to this file's folder
+        string dir = System.IO.Path.GetDirectoryName(full) ?? ".";
+        foreach (var raw in lines)
+        {
+            var t = raw.TrimStart();
+            if (t.StartsWith("#!")) continue;
+            var m = Regex.Match(t, @"^#include\s*\(\s*'([^']+)'", RegexOptions.IgnoreCase);
+            if (m.Success) LoadFile(doc, System.IO.Path.Combine(dir, m.Groups[1].Value), true, visited);
+        }
+    }
+
+    static void ParseComponents(TplDocument doc, int fileIndex, string[] lines)
+    {
+        var starts = new List<int>();
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var t = lines[i].TrimStart();
+            if (t.Length == 0 || t[0] != '#' || t.StartsWith("#!")) continue;
+            if (ComponentKinds.Contains(Directive(t))) starts.Add(i);
+        }
+        for (int s = 0; s < starts.Count; s++)
+        {
+            int start = starts[s];
+            int end = (s + 1 < starts.Count ? starts[s + 1] : lines.Length) - 1;
+            var comp = NewComponent(lines[start], fileIndex, start, end);
+            ParseSheet(lines, start, end, comp);
+            doc.Components.Add(comp);
+        }
+    }
+
+    static TplComponent NewComponent(string line, int fileIndex, int start, int end)
+    {
+        var t = line.TrimStart();
+        var comp = new TplComponent { FileIndex = fileIndex, StartLine = start, EndLine = end };
+        var m = Regex.Match(t, @"^#(\w+)\s*\(\s*([^,'()]*)", RegexOptions.IgnoreCase);
+        if (m.Success) { comp.Kind = m.Groups[1].Value.ToUpperInvariant(); comp.Name = m.Groups[2].Value.Trim(); }
+        else comp.Kind = Directive(t);
+        var d = Regex.Match(t, @"'((?:[^']|'')*)'");
+        if (d.Success) comp.Description = d.Groups[1].Value.Replace("''", "'");
+        return comp;
+    }
+
+    static void ParseSheet(string[] lines, int from, int to, TplComponent comp)
+    {
         var stack = new Stack<TplElement>();
         var sheetRoot = new TplElement { Kind = TplKind.Sheet };
         bool inSheet = false;
 
-        for (int i = 0; i < lines.Length; i++)
+        for (int i = from; i <= to && i < lines.Length; i++)
         {
             var trimmed = lines[i].TrimStart();
-            if (trimmed.Length == 0 || trimmed[0] != '#') continue;
+            if (trimmed.Length == 0 || trimmed[0] != '#' || trimmed.StartsWith("#!")) continue;
             var dir = Directive(trimmed);
 
             switch (dir)
             {
                 case "SHEET":
-                    if (inSheet) break;
+                    if (inSheet) continue;
                     inSheet = true; stack.Clear(); stack.Push(sheetRoot); continue;
                 case "ENDSHEET":
-                    if (inSheet) return doc;     // only the first #SHEET, then stop
+                    if (inSheet) return;          // first sheet of the component only
                     continue;
             }
             if (!inSheet) continue;
@@ -94,7 +176,7 @@ public static class TplParser
             {
                 case "TAB":
                     var tab = NewEl(TplKind.Tab, lines[i], i);
-                    Add(stack, tab); doc.Tabs.Add(tab); stack.Push(tab); break;
+                    Add(stack, tab); comp.Tabs.Add(tab); stack.Push(tab); break;
                 case "ENDTAB": Close(stack, i); break;
                 case "BOXED":
                     var box = NewEl(TplKind.Boxed, lines[i], i);
@@ -113,7 +195,6 @@ public static class TplParser
                 case "IMAGE": Add(stack, NewEl(TplKind.Image, lines[i], i)); break;
             }
         }
-        return doc;
     }
 
     static string Directive(string t)
@@ -189,17 +270,30 @@ public static class TplParser
 
 public static class TplWriter
 {
+    /// <summary>Save every file that has pending edits; untouched files (incl. .tpw includes) are left alone.</summary>
+    public static void Save(TplDocument doc)
+    {
+        for (int fi = 0; fi < doc.Files.Count; fi++)
+        {
+            var tabs = new List<TplElement>();
+            foreach (var c in doc.Components)
+                if (c.FileIndex == fi) tabs.AddRange(c.Tabs);
+            bool changed = tabs.Any(t => Flatten(t).Any(e => e.Dirty || e.Inserted || e.Deleted || e.Moved));
+            if (changed) SaveFile(doc.Files[fi], tabs);
+        }
+    }
+
     /// <summary>
     /// Rewrite AT() of moved controls, drop deleted ones, emit added ones, and relocate reparented
     /// ones into their new container — every other byte is preserved.
     /// </summary>
-    public static void Save(TplDocument doc, string path)
+    static void SaveFile(TplFile file, List<TplElement> docTabs)
     {
-        var lines = (string[])doc.Lines.Clone();
+        var lines = (string[])file.Lines.Clone();
 
         // Lines to remove: deleted elements (containers span to #END...) and relocated controls' old line.
         var drop = new HashSet<int>();
-        foreach (var tab in doc.Tabs)
+        foreach (var tab in docTabs)
             foreach (var e in Flatten(tab))
             {
                 if (e.Deleted && e.LineIndex >= 0)
@@ -212,7 +306,7 @@ public static class TplWriter
             }
 
         // In-place AT rewrite for controls that stayed put (not added/relocated/deleted).
-        foreach (var tab in doc.Tabs)
+        foreach (var tab in docTabs)
             foreach (var e in Flatten(tab))
                 if (e.Dirty && !e.Deleted && !e.Inserted && !e.Moved && e.LineIndex >= 0 && !drop.Contains(e.LineIndex))
                     lines[e.LineIndex] = ApplyAt(lines[e.LineIndex], e);
@@ -224,7 +318,7 @@ public static class TplWriter
             if (!emit.TryGetValue(anchor, out var l)) emit[anchor] = l = new List<string>();
             l.AddRange(ss);
         }
-        foreach (var tab in doc.Tabs)
+        foreach (var tab in docTabs)
             foreach (var owner in Flatten(tab))
             {
                 bool stationary = (owner.Kind == TplKind.Tab || owner.Kind == TplKind.Boxed)
@@ -244,7 +338,7 @@ public static class TplWriter
         }
         if (emit.TryGetValue(lines.Length, out var tail)) kept.AddRange(tail);
 
-        File.WriteAllText(path, string.Join(doc.Newline, kept));
+        File.WriteAllText(file.Path, string.Join(file.Newline, kept));
     }
 
     static string Esc(string s) => (s ?? "").Replace("'", "''");

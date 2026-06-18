@@ -12,7 +12,10 @@
             <Button Click="MaterializeAll_Click" Padding="8,2"
                     ToolTip="Give every control an explicit AT(x,y,w,h) from the current layout, so they can all be dragged">Add AT to all</Button>
             <Separator/>
-            <TextBlock VerticalAlignment="Center" Margin="4,0">Tab:</TextBlock>
+            <TextBlock VerticalAlignment="Center" Margin="4,0">Part:</TextBlock>
+            <ComboBox x:Name="cmbParts" Width="220" SelectionChanged="Part_Changed"
+                      ToolTip="The template component to edit (extension / control / procedure / …), across the .tpl and its .tpw includes"/>
+            <TextBlock VerticalAlignment="Center" Margin="8,0,4,0">Tab:</TextBlock>
             <ComboBox x:Name="cmbTabs" Width="140" SelectionChanged="Tab_Changed"/>
             <Separator/>
             <TextBlock VerticalAlignment="Center" Margin="4,0">Zoom</TextBlock>

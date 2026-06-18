@@ -17,6 +17,10 @@ Then **Open .tpl…** and pick e.g. `..\..\templates\AJEBackupAPP.tpl`.
 
 ## What it does
 
+- **Whole template set** — opening a `.tpl` also follows its `#INCLUDE('…​.tpw')` files and parses **every
+  component** (`#EXTENSION/#CONTROL/#PROCEDURE/#CODE/#GROUP/…`). A **Part** dropdown lists each component that
+  has a prompt sheet (showing which file it's in); pick one to edit its tabs. **Save writes each file
+  separately** — only files you actually changed are rewritten, so untouched `.tpw` includes are left alone.
 - **Parses** `#SHEET/#TAB/#BOXED/#BUTTON/#ENABLE/#PROMPT/#DISPLAY/#IMAGE`, including each element's
   `AT()` and `PROP(PROP:Font/FontColor/FontSize/FontStyle)`.
 - **Renders** the selected tab on a canvas: boxes as group frames, prompts/displays as chips with their
@@ -75,7 +79,7 @@ Then **Open .tpl…** and pick e.g. `..\..\templates\AJEBackupAPP.tpl`.
   replicated. Dragging such a control converts it to an explicit `AT()` (frame‑relative).
 - DLU→pixel is a fixed scale (zoomable); the preview is *close*, not pixel‑identical to Clarion, so a final
   glance in the IDE is still wise — but with far less guess‑and‑check.
-- Reads the **first** `#SHEET` (the global extension). `#BUTTON(MULTI)` row editors render as a single chip.
+- Reads the **first** `#SHEET` of each component. `#BUTTON(MULTI)` row editors render as a single chip.
 
 ## Files
 

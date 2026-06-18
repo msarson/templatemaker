@@ -16,6 +16,8 @@ namespace ClarionTplDesigner;
 public partial class MainWindow : Window
 {
     TplDocument? _doc;
+    TplComponent? _component;          // the template part currently being edited
+    List<TplComponent> _parts = new(); // selectable parts (components that have a prompt sheet)
     TplElement? _tab;
     TplElement? _sel;
 
@@ -60,12 +62,30 @@ public partial class MainWindow : Window
         try
         {
             _doc = TplParser.Parse(dlg.FileName);
-            cmbTabs.ItemsSource = _doc.Tabs.Select(t => t.Title).ToList();
             Title = "Clarion Template Designer — " + System.IO.Path.GetFileName(dlg.FileName);
-            if (_doc.Tabs.Count > 0) cmbTabs.SelectedIndex = 0;
-            status.Text = $"Loaded {_doc.Tabs.Count} tab(s). Click a control to select; drag to move.";
+            PopulateParts(0, 0);
+            int files = _doc.Files.Count, comps = _doc.Components.Count;
+            status.Text = $"Loaded {_parts.Count} editable part(s) of {comps} component(s) across {files} file(s). "
+                        + "Pick a Part, then a Tab.";
         }
         catch (Exception ex) { MessageBox.Show("Parse failed:\n" + ex.Message); }
+    }
+
+    void PopulateParts(int partIdx, int tabIdx)
+    {
+        if (_doc == null) return;
+        _parts = _doc.Components.Where(c => c.HasSheet).ToList();
+        cmbParts.ItemsSource = _parts.Select(PartLabel).ToList();
+        _pendingTabIdx = tabIdx;
+        if (_parts.Count > 0) cmbParts.SelectedIndex = Math.Min(Math.Max(partIdx, 0), _parts.Count - 1);
+        else { cmbParts.SelectedIndex = -1; _component = null; _tab = null; cmbTabs.ItemsSource = null; Render(); }
+    }
+
+    string PartLabel(TplComponent c)
+    {
+        string title = c.Description.Length > 0 ? c.Description : c.Name;
+        string file = _doc != null && c.FileIndex > 0 ? $"[{System.IO.Path.GetFileName(_doc.Files[c.FileIndex].Path)}] " : "";
+        return $"{file}{c.Kind}: {title}";
     }
 
     void Save_Click(object s, RoutedEventArgs e)
@@ -74,9 +94,9 @@ public partial class MainWindow : Window
         try
         {
             bool structural = AllElements().Any(el => el.Inserted || el.Deleted || el.Moved);
-            TplWriter.Save(_doc, _doc.Path);
+            TplWriter.Save(_doc);
             if (structural) ReloadFromDisk();      // re-sync the model so re-saving can't duplicate/re-drop
-            status.Text = "Saved " + _doc.Path;
+            status.Text = "Saved " + System.IO.Path.GetFileName(_doc.Path);
         }
         catch (Exception ex) { MessageBox.Show("Save failed:\n" + ex.Message); }
     }
@@ -84,25 +104,22 @@ public partial class MainWindow : Window
     void ReloadFromDisk()
     {
         if (_doc == null) return;
-        int tabIdx = cmbTabs.SelectedIndex;
+        int partIdx = cmbParts.SelectedIndex, tabIdx = cmbTabs.SelectedIndex;
         _doc = TplParser.Parse(_doc.Path);
         _sel = null; _z.Clear();
-        cmbTabs.ItemsSource = _doc.Tabs.Select(t => t.Title).ToList();
-        cmbTabs.SelectedIndex = tabIdx >= 0 && tabIdx < _doc.Tabs.Count ? tabIdx : (_doc.Tabs.Count > 0 ? 0 : -1);
-        _tab = cmbTabs.SelectedIndex >= 0 ? _doc.Tabs[cmbTabs.SelectedIndex] : null;
-        Render();
+        PopulateParts(partIdx, tabIdx);
     }
 
     // Give every positionable control an explicit AT(x,y,w,h) from the current layout,
     // filling only the missing slots so existing coordinates are kept. Makes everything draggable.
     void MaterializeAll_Click(object s, RoutedEventArgs e)
     {
-        if (_doc == null) { status.Text = "Open a template first."; return; }
+        if (_doc == null || _component == null) { status.Text = "Open a template and pick a part first."; return; }
 
-        int special = AllElements().Count(el => el.Kind == TplKind.Prompt && !el.Deleted
+        int special = _component.Tabs.SelectMany(Positionable).Count(el => el.Kind == TplKind.Prompt && !el.Deleted
                                                 && !(el.HasX && el.HasY) && ClassifyPrompt(el.PromptType).Special);
-        var msg = "“Add AT to all” gives controls an explicit AT(x,y,w,h) from the designer’s APPROXIMATE "
-                + "layout, so they can all be dragged.\n\n"
+        var msg = "“Add AT to all” gives the controls in this part an explicit AT(x,y,w,h) from the designer’s "
+                + "APPROXIMATE layout, so they can all be dragged.\n\n"
                 + "Prompts that Clarion auto-builds with a dropdown or “…” button will be SKIPPED — pinning "
                 + "those tends to move or hide the auto-generated part. "
                 + (special > 0 ? $"{special} such prompt(s) will be left for Clarion to lay out.\n\n" : "\n")
@@ -115,7 +132,7 @@ public partial class MainWindow : Window
         }
 
         int n = 0, skipped = 0;
-        foreach (var tab in _doc.Tabs)
+        foreach (var tab in _component.Tabs)
         {
             Layout.Run(tab);
             foreach (var el in Positionable(tab))
@@ -180,8 +197,8 @@ public partial class MainWindow : Window
     string NewSymbol()
     {
         var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (_doc != null)
-            foreach (var l in _doc.Lines)
+        foreach (var f in _doc?.Files ?? Enumerable.Empty<TplFile>())
+            foreach (var l in f.Lines)
                 foreach (Match m in Regex.Matches(l, @"%[A-Za-z]\w*")) used.Add(m.Value);
         foreach (var e in AllElements())
             if (!string.IsNullOrEmpty(e.Symbol)) used.Add(e.Symbol);
@@ -194,8 +211,16 @@ public partial class MainWindow : Window
     IEnumerable<TplElement> AllElements()
     {
         if (_doc == null) yield break;
-        foreach (var t in _doc.Tabs)
-            foreach (var e in Flat(t)) yield return e;
+        foreach (var c in _doc.Components)
+            foreach (var t in c.Tabs)
+                foreach (var e in Flat(t)) yield return e;
+    }
+
+    TplFile? CurrentFile()
+    {
+        if (_doc == null || _doc.Files.Count == 0) return null;
+        int fi = _component?.FileIndex ?? 0;
+        return fi >= 0 && fi < _doc.Files.Count ? _doc.Files[fi] : _doc.Files[0];
     }
     static IEnumerable<TplElement> Flat(TplElement e)
     {
@@ -204,11 +229,24 @@ public partial class MainWindow : Window
             foreach (var x in Flat(c)) yield return x;
     }
 
-    // ---------- tab / render ----------
+    // ---------- part / tab / render ----------
+    int _pendingTabIdx;   // tab to select after the next Part_Changed populates cmbTabs
+
+    void Part_Changed(object s, SelectionChangedEventArgs e)
+    {
+        if (_doc == null || cmbParts.SelectedIndex < 0 || cmbParts.SelectedIndex >= _parts.Count) return;
+        _component = _parts[cmbParts.SelectedIndex];
+        Select(null);
+        cmbTabs.ItemsSource = _component.Tabs.Select(t => t.Title).ToList();
+        int want = _pendingTabIdx; _pendingTabIdx = 0;
+        if (_component.Tabs.Count > 0) cmbTabs.SelectedIndex = Math.Min(Math.Max(want, 0), _component.Tabs.Count - 1);
+        else { _tab = null; Render(); }
+    }
+
     void Tab_Changed(object s, SelectionChangedEventArgs e)
     {
-        if (_doc == null || cmbTabs.SelectedIndex < 0) return;
-        _tab = _doc.Tabs[cmbTabs.SelectedIndex];
+        if (_component == null || cmbTabs.SelectedIndex < 0 || cmbTabs.SelectedIndex >= _component.Tabs.Count) return;
+        _tab = _component.Tabs[cmbTabs.SelectedIndex];
         Select(null);
         Render();
     }
@@ -296,8 +334,9 @@ public partial class MainWindow : Window
     List<(string Symbol, List<int> Lines)> ExternalReferences(TplElement el)
     {
         var result = new List<(string, List<int>)>();
-        if (_doc == null) return result;
-        var lines = _doc.Lines;
+        var file = CurrentFile();
+        if (file == null) return result;
+        var lines = file.Lines;
         int start = el.LineIndex, end = el.EndLineIndex >= 0 ? el.EndLineIndex : el.LineIndex;
 
         foreach (var sym in SubtreeSymbols(el).Distinct())
