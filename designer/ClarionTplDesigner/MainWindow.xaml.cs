@@ -9,6 +9,8 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Text.RegularExpressions;
+using ICSharpCode.AvalonEdit.Highlighting;
+using ICSharpCode.AvalonEdit.Highlighting.Xshd;
 using Microsoft.Win32;
 
 namespace ClarionTplDesigner;
@@ -46,6 +48,8 @@ public partial class MainWindow : Window
     bool _gestureChanged;
     bool _editGuard;                  // one undo entry per X/Y/W/H or text editing burst
     const int MaxUndo = 100;
+    bool _srcOpen;                    // source panel visible
+    IHighlightingDefinition? _clarionHl;
 
     sealed class Snapshot
     {
@@ -109,6 +113,7 @@ public partial class MainWindow : Window
             bool structural = AllElements().Any(el => el.Inserted || el.Deleted || el.Moved);
             TplWriter.Save(_doc);
             if (structural) ReloadFromDisk();      // re-sync the model so re-saving can't duplicate/re-drop
+            LoadSource();                          // reflect what's now on disk
             status.Text = "Saved " + System.IO.Path.GetFileName(_doc.Path);
         }
         catch (Exception ex) { MessageBox.Show("Save failed:\n" + ex.Message); }
@@ -316,6 +321,59 @@ public partial class MainWindow : Window
         int fi = _component?.FileIndex ?? 0;
         return fi >= 0 && fi < _doc.Files.Count ? _doc.Files[fi] : _doc.Files[0];
     }
+
+    // ---------- source panel (AvalonEdit) ----------
+    const string ClarionXshd = @"<?xml version='1.0'?>
+<SyntaxDefinition name='ClarionTemplate' xmlns='http://icsharpcode.net/sharpdevelop/syntaxdefinition/2008'>
+  <Color name='Comment'   foreground='#208020' />
+  <Color name='Directive' foreground='#0A66C2' fontWeight='bold' />
+  <Color name='Symbol'    foreground='#0E7C6B' />
+  <Color name='Str'       foreground='#B26A00' />
+  <RuleSet ignoreCase='true'>
+    <Span color='Comment' begin='#!' />
+    <Span color='Str'><Begin>'</Begin><End>'</End></Span>
+    <Span color='Comment' begin='!' />
+    <Rule color='Directive'>\#[A-Za-z][A-Za-z0-9_]*</Rule>
+    <Rule color='Symbol'>%[A-Za-z][A-Za-z0-9_:]*</Rule>
+  </RuleSet>
+</SyntaxDefinition>";
+
+    IHighlightingDefinition ClarionHighlighting()
+    {
+        if (_clarionHl != null) return _clarionHl;
+        using var xr = System.Xml.XmlReader.Create(new System.IO.StringReader(ClarionXshd));
+        _clarionHl = HighlightingLoader.Load(xr, HighlightingManager.Instance);
+        return _clarionHl;
+    }
+
+    void Source_Click(object s, RoutedEventArgs e)
+    {
+        _srcOpen = btnSource.IsChecked == true;
+        srcRow.Height = _srcOpen ? new GridLength(240) : new GridLength(0);
+        srcSplitter.Visibility = _srcOpen ? Visibility.Visible : Visibility.Collapsed;
+        if (_srcOpen) { LoadSource(); ScrollSourceTo(_sel); }
+    }
+
+    void LoadSource()
+    {
+        if (!_srcOpen) return;
+        var f = CurrentFile();
+        srcEditor.SyntaxHighlighting = ClarionHighlighting();
+        if (f == null) { srcEditor.Text = ""; srcHeader.Text = "SOURCE (read-only)"; return; }
+        try { srcEditor.Text = System.IO.File.ReadAllText(f.Path); }
+        catch { srcEditor.Text = string.Join(f.Newline, f.Lines); }
+        srcHeader.Text = $"SOURCE (read-only) — {System.IO.Path.GetFileName(f.Path)}";
+    }
+
+    void ScrollSourceTo(TplElement? el)
+    {
+        if (!_srcOpen || el == null || el.LineIndex < 0) return;
+        int line = el.LineIndex + 1;
+        if (line < 1 || line > srcEditor.Document.LineCount) return;
+        var dl = srcEditor.Document.GetLineByNumber(line);
+        srcEditor.ScrollToLine(line);
+        srcEditor.Select(dl.Offset, dl.Length);
+    }
     static IEnumerable<TplElement> Flat(TplElement e)
     {
         yield return e;
@@ -331,6 +389,7 @@ public partial class MainWindow : Window
         if (_doc == null || cmbParts.SelectedIndex < 0 || cmbParts.SelectedIndex >= _parts.Count) return;
         _component = _parts[cmbParts.SelectedIndex];
         Select(null);
+        LoadSource();           // current part may live in a different file
         cmbTabs.ItemsSource = _component.Tabs.Select(t => t.Title).ToList();
         int want = _pendingTabIdx; _pendingTabIdx = 0;
         if (_component.Tabs.Count > 0) cmbTabs.SelectedIndex = Math.Min(Math.Max(want, 0), _component.Tabs.Count - 1);
@@ -849,6 +908,8 @@ public partial class MainWindow : Window
             childHdr.Visibility = lstChildren.Visibility = Visibility.Collapsed;
         }
         _suppressChildSel = false;
+
+        ScrollSourceTo(el);
     }
 
     void Children_Select(object s, SelectionChangedEventArgs e)

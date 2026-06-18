@@ -73,6 +73,9 @@ Then **Open .tpl…** and pick e.g. `..\..\templates\AJEBackupAPP.tpl`.
   ruler's labelled segments. Drag a guide to reposition; **drag it back onto a ruler to delete it** (it turns
   red as you hover the ruler), or double‑click it.
 - **Snapping** — to the grid (configurable size) and to guides; toggle each independently.
+- **Source panel** — the *⌗ Source* toggle opens a resizable, syntax-coloured view of the current part's
+  file (powered by **AvalonEdit**): directives, `%symbols`, `'strings'` and `!`/`#!` comments are coloured,
+  with line numbers. Selecting a control scrolls to and highlights its line. Read-only for now.
 - **Undo** — **Ctrl+Z** (or the *↶ Undo* button) reverts the last change, step by step, all the way back:
   moves, resizes, reparents, adds, deletes, z-order, text/coord edits, and guide changes. History is kept
   per editing session and cleared when you open a file or after a structural save.
