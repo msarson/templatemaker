@@ -83,9 +83,9 @@ Then **Open .tpl…** and pick e.g. `..\..\templates\AJEBackupAPP.tpl`.
   **floating window**; resize with the splitters. *View ▸ Source panel* shows/hides the Source panel. The
   layout is **remembered between sessions** (saved on close); *View ▸ Reset panel layout* restores the default.
 - **Menus & toolbars** — a **File / Edit / Insert / Arrange / Style / Guides / Preferences / View** menu bar
-  holds the one‑click actions. The toolbar has two rows: live controls (Part, Tab, Zoom, grid size) and a
-  **Style bar** — a **Text** box, **Font** dropdown, **size** box, **B**, **A▲/A▼**, **Colour…**, **Font…** —
-  all acting on the current selection. **Preferences** has
+  holds the one‑click actions. The toolbar has three rows: **live controls** (Part, Tab, Zoom, grid size); a
+  **Style bar** (a **Text** box, **Font** dropdown, **size** box, **B**, **A▲/A▼**, **Colour…**, **Font…**)
+  acting on the current selection; and an **Add bar** (Label/String/Number/Spin/Check/Image/Group box). **Preferences** has
   checkable toggles: **Show grid** (draws the snap grid on the canvas), **Snap to grid**, **Snap to guides**,
   and **Show minimap**. These (plus zoom and grid size) are **remembered between sessions**.
 - **Minimap** — a code‑overview strip beside the source (each line a coloured bar — comments/directives/symbols
