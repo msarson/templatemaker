@@ -57,6 +57,7 @@ public partial class MainWindow : Window
     bool _editGuard;                  // one undo entry per X/Y/W/H or text editing burst
     const int MaxUndo = 100;
     readonly LineHighlighter _lineHi = new();   // highlights selected controls' lines in the source
+    Dictionary<TplElement, int>? _pendingMap;   // model element -> line in the live/pending source text
     bool _srcOpen;                    // source panel visible
     bool _srcDirty, _loadingSrc;      // editor has unapplied edits / suppress TextChanged while loading
     bool _srcLive;                    // show the would-be-saved source (all pending edits) read-only
@@ -574,6 +575,7 @@ public partial class MainWindow : Window
         _srcDirty = false; btnApplySrc.IsEnabled = false;
         var f = CurrentFile();
         srcHeader.Text = (f == null ? "SOURCE" : $"SOURCE — {System.IO.Path.GetFileName(f.Path)}") + "  •  live (unsaved)";
+        RebuildPendingMap();
         RefreshMinimap();
         UpdateSourceHighlights();
     }
@@ -628,8 +630,10 @@ public partial class MainWindow : Window
     void ScrollSourceTo(TplElement? el)
     {
         UpdateSourceHighlights();
-        if (!_srcOpen || el == null || el.LineIndex < 0) return;
-        int line = el.LineIndex + 1;
+        if (!_srcOpen || el == null) return;
+        int ln = LineOf(el);
+        if (ln < 0) return;
+        int line = ln + 1;
         if (line < 1 || line > srcEditor.Document.LineCount) return;
         var dl = srcEditor.Document.GetLineByNumber(line);
         srcEditor.CaretOffset = dl.Offset;
@@ -643,8 +647,47 @@ public partial class MainWindow : Window
         _lineHi.Lines.Clear();
         if (_srcOpen)
             foreach (var el in _selection)
-                if (el.LineIndex >= 0) _lineHi.Lines.Add(el.LineIndex + 1);
+            {
+                int ln = LineOf(el);
+                if (ln >= 0) _lineHi.Lines.Add(ln + 1);
+            }
         srcEditor.TextArea.TextView.InvalidateLayer(KnownLayer.Selection);
+    }
+
+    // The element's line in the text currently shown: pending line in Live mode, else its parsed line.
+    int LineOf(TplElement el) =>
+        _srcLive && _pendingMap != null && _pendingMap.TryGetValue(el, out var ln) ? ln : el.LineIndex;
+
+    // Map model elements to their line numbers in the live/pending source (which shifts on insert/move/delete).
+    void RebuildPendingMap()
+    {
+        _pendingMap = null;
+        if (!_srcLive || _doc == null || _component == null) return;
+        try
+        {
+            var temp = TplParser.ParseText(srcEditor.Text, _doc.Files[_component.FileIndex].Path);
+            var tc = temp.Components.FirstOrDefault(c => c.HasSheet && c.Kind == _component.Kind && c.Name == _component.Name)
+                     ?? temp.Components.FirstOrDefault(c => c.HasSheet);
+            if (tc == null) return;
+            var model = new List<TplElement>(); foreach (var t in _component.Tabs) FlattenLive(t, model);
+            var tmp = new List<TplElement>(); foreach (var t in tc.Tabs) FlattenAllEls(t, tmp);
+            var map = new Dictionary<TplElement, int>();
+            for (int i = 0; i < model.Count && i < tmp.Count; i++) map[model[i]] = tmp[i].LineIndex;
+            _pendingMap = map;
+        }
+        catch { /* hand-edited / unparseable -> fall back to parsed line indices */ }
+    }
+
+    static void FlattenLive(TplElement e, List<TplElement> o)
+    {
+        if (e.Deleted) return;                       // deleted controls aren't in the pending text
+        o.Add(e);
+        foreach (var c in e.Children) FlattenLive(c, o);
+    }
+    static void FlattenAllEls(TplElement e, List<TplElement> o)
+    {
+        o.Add(e);
+        foreach (var c in e.Children) FlattenAllEls(c, o);
     }
     static IEnumerable<TplElement> Flat(TplElement e)
     {
