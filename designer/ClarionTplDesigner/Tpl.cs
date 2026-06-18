@@ -82,6 +82,7 @@ public class TplFile
     public string Newline = "\r\n";
     public string[] Lines = Array.Empty<string>();
     public bool Included;             // pulled in via #INCLUDE (vs the main .tpl)
+    public bool Dirty;                // raw Lines edited directly (e.g. a symbol rename swept the whole file)
 }
 
 /// <summary>One template component (#EXTENSION/#CONTROL/#PROCEDURE/#CODE/#GROUP/…) and its prompt UI.</summary>
@@ -312,7 +313,8 @@ public static class TplWriter
             var tabs = new List<TplElement>();
             foreach (var c in doc.Components)
                 if (c.FileIndex == fi) tabs.AddRange(c.Tabs);
-            bool changed = tabs.Any(t => Flatten(t).Any(e => e.Dirty || e.Inserted || e.Deleted || e.Moved || e.FontDirty));
+            bool changed = doc.Files[fi].Dirty
+                        || tabs.Any(t => Flatten(t).Any(e => e.Dirty || e.Inserted || e.Deleted || e.Moved || e.FontDirty));
             if (changed) SaveFile(doc.Files[fi], tabs);
         }
     }

@@ -195,6 +195,25 @@
                         CornerRadius="3" Padding="6,4" Margin="0,0,0,8" Visibility="Collapsed">
                     <TextBlock x:Name="propRefs" Foreground="#B23A2E" FontSize="11" TextWrapping="Wrap"/>
                 </Border>
+                <StackPanel x:Name="symBox" Visibility="Collapsed" Margin="0,0,0,8">
+                    <TextBlock Text="SYMBOL" FontWeight="Bold" Foreground="#5B6878" FontSize="11" Margin="0,0,0,2"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="txtSymbol" Grid.Column="0" FontFamily="Consolas" VerticalContentAlignment="Center"
+                                 KeyDown="Symbol_KeyDown"
+                                 ToolTip="The control's %symbol (field name). Edit it and click Rename to change it everywhere it is used."/>
+                        <Button x:Name="btnRename" Grid.Column="1" Content="Rename" Padding="9,1" Margin="6,0,0,0"
+                                Click="RenameSymbol_Click"
+                                ToolTip="Rename this %symbol throughout the whole template (prompt + every place it is referenced) so they stay joined."/>
+                    </Grid>
+                    <TextBlock x:Name="usesHdr" Foreground="#8A95A3" FontSize="11" Margin="0,6,0,2" Visibility="Collapsed"/>
+                    <ListBox x:Name="lstUses" MaxHeight="150" FontSize="11" FontFamily="Consolas" Visibility="Collapsed"
+                             SelectionChanged="Uses_Navigate"
+                             ToolTip="Everywhere this symbol appears. Click an entry to jump to that line in the source."/>
+                </StackPanel>
                 <TextBlock Text="Text / label / file" Foreground="#5B6878" FontSize="11" Margin="0,0,0,1"/>
                 <TextBox x:Name="txtText" Margin="0,0,0,4" TextChanged="Text_Changed"
                          ToolTip="The control's text, label or image file. Editable for controls you add here."/>

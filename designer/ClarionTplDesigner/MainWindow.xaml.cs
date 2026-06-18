@@ -49,6 +49,8 @@ public partial class MainWindow : Window
     bool _ready;          // true once XAML is fully constructed
     List<TplElement>? _childList;     // controls listed for the selected group box
     bool _suppressChildSel;
+    readonly List<(int File, int Line)> _uses = new();   // usages listed for the selected control's symbol
+    bool _suppressUses;
 
     // ---- undo (snapshot history) ----
     readonly List<Snapshot> _undo = new();
@@ -72,6 +74,7 @@ public partial class MainWindow : Window
     {
         public readonly List<List<TplElement>> Tabs = new();    // deep-cloned trees, parallel to doc.Components
         public List<(bool V, double Dlu)> Guides = new();
+        public readonly List<(string[] Lines, bool Dirty)> Files = new();   // raw file text, so a symbol rename is undoable
     }
 
     [Flags] enum Edge { None = 0, Left = 1, Right = 2, Top = 4, Bottom = 8 }
@@ -150,6 +153,7 @@ public partial class MainWindow : Window
             bool structural = AllElements().Any(el => el.Inserted || el.Deleted || el.Moved);
             TplWriter.Save(_doc);
             if (structural) ReloadFromDisk();      // re-sync the model so re-saving can't duplicate/re-drop
+            else foreach (var f in _doc.Files) f.Dirty = false;   // raw-text edits (rename) are now on disk
             LoadSource();                          // reflect what's now on disk
             status.Text = "Saved " + System.IO.Path.GetFileName(_doc.Path);
         }
@@ -324,6 +328,8 @@ public partial class MainWindow : Window
             foreach (var c in _doc.Components)
                 s.Tabs.Add(c.Tabs.Select(t => t.Clone()).ToList());
         s.Guides = _guides.Select(g => (g.Vertical, g.Dlu)).ToList();
+        if (_doc != null)
+            foreach (var f in _doc.Files) s.Files.Add(((string[])f.Lines.Clone(), f.Dirty));
         return s;
     }
 
@@ -352,6 +358,11 @@ public partial class MainWindow : Window
         {
             _doc.Components[i].Tabs.Clear();
             _doc.Components[i].Tabs.AddRange(snap.Tabs[i]);
+        }
+        for (int i = 0; i < _doc.Files.Count && i < snap.Files.Count; i++)
+        {
+            _doc.Files[i].Lines = (string[])snap.Files[i].Lines.Clone();
+            _doc.Files[i].Dirty = snap.Files[i].Dirty;
         }
         _guides.Clear();
         foreach (var (v, d) in snap.Guides) _guides.Add(new Guide { Vertical = v, Dlu = d });
@@ -895,6 +906,150 @@ public partial class MainWindow : Window
         return result;
     }
 
+    // ---------- symbol: show, find usages, rename everywhere ----------
+
+    void PopulateSymbol(TplElement? el)
+    {
+        bool has = el != null && !string.IsNullOrEmpty(el.Symbol) && _selection.Count <= 1;
+        symBox.Visibility = has ? Visibility.Visible : Visibility.Collapsed;
+        if (!has) { _uses.Clear(); return; }
+
+        _suppressProp = true;
+        txtSymbol.Text = el!.Symbol;
+        // an unsaved control's symbol lives only in the model until Save, so there's nothing to rename across files yet
+        btnRename.Content = el.Inserted ? "Set name" : "Rename";
+        _suppressProp = false;
+
+        int ownFile = _component?.FileIndex ?? 0;
+        var hits = FindUsages(el.Symbol);
+        _suppressUses = true;
+        _uses.Clear();
+        var rows = new List<string>();
+        foreach (var (fi, li, text) in hits)
+        {
+            _uses.Add((fi, li));
+            string tag = (fi == ownFile && li == el.LineIndex) ? "● " : "   ";
+            string fn = _doc!.Files.Count > 1 ? System.IO.Path.GetFileName(_doc.Files[fi].Path) + " " : "";
+            rows.Add($"{tag}{fn}{li + 1,4}: {text}");
+        }
+        lstUses.ItemsSource = rows;
+        lstUses.SelectedIndex = -1;
+        usesHdr.Text = el.Inserted
+            ? "Not yet written — usages appear after you Save."
+            : $"USES ({hits.Count})   ● = this control";
+        usesHdr.Visibility = Visibility.Visible;
+        lstUses.Visibility = rows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _suppressUses = false;
+    }
+
+    // Every line, across every file, that references the given %symbol (word-boundary so %Foo != %FooBar).
+    List<(int File, int Line, string Text)> FindUsages(string sym)
+    {
+        var res = new List<(int, int, string)>();
+        if (_doc == null || string.IsNullOrEmpty(sym)) return res;
+        var rx = new Regex(Regex.Escape(sym) + @"(?![A-Za-z0-9_])");
+        for (int fi = 0; fi < _doc.Files.Count; fi++)
+        {
+            var lines = _doc.Files[fi].Lines;
+            for (int i = 0; i < lines.Length; i++)
+                if (rx.IsMatch(lines[i])) res.Add((fi, i, lines[i].Trim()));
+        }
+        return res;
+    }
+
+    void Uses_Navigate(object s, SelectionChangedEventArgs e)
+    {
+        if (_suppressUses) return;
+        int i = lstUses.SelectedIndex;
+        if (i < 0 || i >= _uses.Count) return;
+        GotoUsage(_uses[i].File, _uses[i].Line);
+    }
+
+    // Jump the source editor to a raw file line, switching the visible part if the usage is in another file.
+    void GotoUsage(int fi, int li)
+    {
+        if (_doc == null || fi < 0 || fi >= _doc.Files.Count) return;
+        if (_component == null || _component.FileIndex != fi)
+        {
+            int p = _parts.FindIndex(c => c.FileIndex == fi);
+            if (p >= 0 && p != cmbParts.SelectedIndex) cmbParts.SelectedIndex = p;   // Part_Changed reloads source
+        }
+        if (!_srcOpen) SetSource(true);
+        int line = li + 1;
+        if (line < 1 || line > srcEditor.Document.LineCount) return;
+        var dl = srcEditor.Document.GetLineByNumber(line);
+        srcEditor.CaretOffset = dl.Offset;
+        srcEditor.Select(dl.Offset, dl.Length);
+        srcEditor.ScrollToLine(line);
+        status.Text = $"{System.IO.Path.GetFileName(_doc.Files[fi].Path)}  line {line}";
+    }
+
+    void Symbol_KeyDown(object s, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) { RenameSymbol_Click(s, e); e.Handled = true; }
+    }
+
+    void RenameSymbol_Click(object s, RoutedEventArgs e)
+    {
+        if (_sel == null || string.IsNullOrEmpty(_sel.Symbol)) return;
+        string old = _sel.Symbol;
+        string proposed = txtSymbol.Text.Trim();
+        if (!proposed.StartsWith("%")) proposed = "%" + proposed;
+        if (!Regex.IsMatch(proposed, @"^%[A-Za-z]\w*$"))
+        {
+            MessageBox.Show("A symbol must be % followed by a letter, then letters, digits or underscores — e.g. %CustomerName.",
+                "Invalid symbol", MessageBoxButton.OK, MessageBoxImage.Warning);
+            txtSymbol.Text = old;
+            return;
+        }
+        if (string.Equals(proposed, old, StringComparison.OrdinalIgnoreCase))
+        {
+            if (proposed != old) ApplyRename(old, proposed);   // case-only change still worth applying
+            return;
+        }
+
+        // refuse to merge into a symbol that already exists elsewhere
+        var clash = new Regex(Regex.Escape(proposed) + @"(?![A-Za-z0-9_])");
+        bool exists = (_doc?.Files ?? Enumerable.Empty<TplFile>()).Any(f => f.Lines.Any(l => clash.IsMatch(l)))
+                   || AllElements().Any(x => x != _sel && string.Equals(x.Symbol, proposed, StringComparison.OrdinalIgnoreCase));
+        if (exists)
+        {
+            MessageBox.Show($"{proposed} is already used by another field. Renaming to it would merge the two and is blocked.",
+                "Symbol already in use", MessageBoxButton.OK, MessageBoxImage.Warning);
+            txtSymbol.Text = old;
+            return;
+        }
+
+        ApplyRename(old, proposed);
+    }
+
+    void ApplyRename(string oldSym, string newSym)
+    {
+        PushUndo();
+        int hits = 0, files = 0;
+        var rx = new Regex(Regex.Escape(oldSym) + @"(?![A-Za-z0-9_])");
+        foreach (var f in _doc!.Files)
+        {
+            bool touched = false;
+            for (int i = 0; i < f.Lines.Length; i++)
+            {
+                if (!rx.IsMatch(f.Lines[i])) continue;
+                f.Lines[i] = rx.Replace(f.Lines[i], newSym.Replace("$", "$$"));
+                hits++; touched = true;
+            }
+            if (touched) { f.Dirty = true; files++; }
+        }
+        // keep the in-memory model joined to the renamed source
+        foreach (var x in AllElements())
+            if (string.Equals(x.Symbol, oldSym, StringComparison.OrdinalIgnoreCase)) x.Symbol = newSym;
+
+        Render();
+        Select(_sel);
+        status.Text = _sel != null && _sel.Inserted
+            ? $"Named this control {newSym}.  Save to write it."
+            : $"Renamed {oldSym} → {newSym} in {hits} place(s) across {files} file(s).  Save to write the change.";
+    }
+
     void AddChip(TplElement el)
     {
         bool box = el.Kind == TplKind.Boxed;
@@ -1299,6 +1454,8 @@ public partial class MainWindow : Window
             propRefsBox.Visibility = Visibility.Visible;
         }
         else propRefsBox.Visibility = Visibility.Collapsed;
+
+        PopulateSymbol(el);
 
         if (el is { Kind: TplKind.Prompt })
         {

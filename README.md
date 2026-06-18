@@ -168,7 +168,11 @@ rewriting only the `AT()` values (plus dropping deleted lines and relocating rep
 command bar inserts new Label/String/Number/Spin/Check/Image/Group controls; dropping a control into a
 group box makes it a child (and moving the box carries its contents); guides pull from the rulers and are
 removed by dragging them back onto a ruler; deleting a control whose `%symbol` is still referenced
-elsewhere pops a warning so you don't break code generation. See `designer/ClarionTplDesigner/README.md`.
+elsewhere pops a warning so you don't break code generation. Selecting a control surfaces its **`%symbol`**
+in the Properties pad with a navigable **Uses** list (every place across all files the symbol appears — click
+to jump to that line) and a **Rename** button that renames it *everywhere at once* (prompt **+** every
+reference) so the field stays joined; newly added controls can be named the same way. See
+`designer/ClarionTplDesigner/README.md`.
 
 To package everything (designer **+** templates **+** skill **+** agent) into one deliverable — .NET is
 bundled in, so nothing needs pre-installing on the target:
