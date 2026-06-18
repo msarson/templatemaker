@@ -16,8 +16,8 @@
 #!===========================================================================
  #TAB('About')
    #DISPLAY('')
-   #IMAGE('AJEico_about.png'),AT(,,24,24)
-   #DISPLAY('Welcome'),PROP(PROP:FontColor,0794E1FH),PROP(PROP:FontStyle,700),PROP(PROP:FontSize,12),PROP(PROP:Font,'Segoe UI')
+   #IMAGE('AJEico_about.png'),AT(,,12,12)
+   #DISPLAY('Welcome'),PROP(PROP:FontColor,0794E1FH),PROP(PROP:FontStyle,700),PROP(PROP:FontSize,10),PROP(PROP:Font,'Segoe UI')
    #DISPLAY('Automatic, versioned backups every time you compile.'),PROP(PROP:FontColor,06E6E6EH),PROP(PROP:FontSize,8),PROP(PROP:Font,'Segoe UI')
    #DISPLAY('')
    #BOXED('Automatic Backup for Clarion'),SECTION
@@ -32,8 +32,8 @@
    #ENDTAB
   #TAB('Configuration')
     #DISPLAY('')
-    #IMAGE('AJEico_config.png'),AT(,,24,24)
-    #DISPLAY('Configuration'),PROP(PROP:FontColor,0794E1FH),PROP(PROP:FontStyle,700),PROP(PROP:FontSize,12),PROP(PROP:Font,'Segoe UI')
+    #IMAGE('AJEico_config.png'),AT(,,12,12)
+    #DISPLAY('Configuration'),PROP(PROP:FontColor,0794E1FH),PROP(PROP:FontStyle,700),PROP(PROP:FontSize,10),PROP(PROP:Font,'Segoe UI')
     #DISPLAY('Choose where and what to back up after each compile.'),PROP(PROP:FontColor,06E6E6EH),PROP(PROP:FontSize,8),PROP(PROP:Font,'Segoe UI')
     #DISPLAY('')
     #BOXED('Activation'),SECTION
@@ -76,8 +76,8 @@
         #ENDTAB
   #TAB('Other Files')
     #DISPLAY('')
-    #IMAGE('AJEico_files.png'),AT(,,24,24)
-    #DISPLAY('Other Files'),PROP(PROP:FontColor,0794E1FH),PROP(PROP:FontStyle,700),PROP(PROP:FontSize,12),PROP(PROP:Font,'Segoe UI')
+    #IMAGE('AJEico_files.png'),AT(,,12,12)
+    #DISPLAY('Other Files'),PROP(PROP:FontColor,0794E1FH),PROP(PROP:FontStyle,700),PROP(PROP:FontSize,10),PROP(PROP:Font,'Segoe UI')
     #DISPLAY('Extra files to include in every backup (icons, configs, ...).'),PROP(PROP:FontColor,06E6E6EH),PROP(PROP:FontSize,8),PROP(PROP:Font,'Segoe UI')
     #DISPLAY('')
     #BOXED('Extra Files to Back Up'),SECTION
@@ -98,8 +98,8 @@
   #ENDTAB
   #TAB('Settings')
     #DISPLAY('')
-    #IMAGE('AJEico_settings.png'),AT(,,24,24)
-    #DISPLAY('Settings'),PROP(PROP:FontColor,0794E1FH),PROP(PROP:FontStyle,700),PROP(PROP:FontSize,12),PROP(PROP:Font,'Segoe UI')
+    #IMAGE('AJEico_settings.png'),AT(,,12,12)
+    #DISPLAY('Settings'),PROP(PROP:FontColor,0794E1FH),PROP(PROP:FontStyle,700),PROP(PROP:FontSize,10),PROP(PROP:Font,'Segoe UI')
     #DISPLAY('History window, database type and an optional REST API.'),PROP(PROP:FontColor,06E6E6EH),PROP(PROP:FontSize,8),PROP(PROP:Font,'Segoe UI')
     #DISPLAY('')
     #BOXED('General'),SECTION
@@ -118,8 +118,8 @@
   #ENDTAB
   #TAB('License')
     #DISPLAY('')
-    #IMAGE('AJEico_license.png'),AT(,,24,24)
-    #DISPLAY('License'),PROP(PROP:FontColor,0794E1FH),PROP(PROP:FontStyle,700),PROP(PROP:FontSize,12),PROP(PROP:Font,'Segoe UI')
+    #IMAGE('AJEico_license.png'),AT(,,12,12)
+    #DISPLAY('License'),PROP(PROP:FontColor,0794E1FH),PROP(PROP:FontStyle,700),PROP(PROP:FontSize,10),PROP(PROP:Font,'Segoe UI')
     #DISPLAY('Enter your registration details.'),PROP(PROP:FontColor,06E6E6EH),PROP(PROP:FontSize,8),PROP(PROP:Font,'Segoe UI')
     #DISPLAY('')
     #BOXED('License'),SECTION
@@ -130,7 +130,7 @@
   #ENDTAB
   #TAB('Instructions')
     #DISPLAY('')
-    #IMAGE('AJEico_help.png'),AT(,,24,24)
+    #IMAGE('AJEico_help.png'),AT(,,12,12)
     #BOXED('How to use Automatic Backup APP'),SECTION
       #DISPLAY('What it does'),PROP(PROP:FontColor,0794E1FH),PROP(PROP:FontStyle,700),PROP(PROP:Font,'Segoe UI')
       #DISPLAY('After each successful compile it makes a versioned backup of your')
