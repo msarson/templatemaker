@@ -348,15 +348,97 @@ public partial class MainWindow : Window
         return _clarionHl;
     }
 
+    enum DockSide { Bottom, Top, Left, Right }
+    DockSide _dock = DockSide.Bottom;
+    double _panelH = 260, _panelW = 460;   // remembered sizes per orientation
+
     void Source_Click(object s, RoutedEventArgs e) => SetSource(btnSource.IsChecked == true);
 
     void SetSource(bool show)
     {
         _srcOpen = show;
         btnSource.IsChecked = show;
-        srcRow.Height = show ? new GridLength(260) : new GridLength(0);
-        srcSplitter.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        ApplyDock();
         if (show) { LoadSource(); ScrollSourceTo(_sel); }
+    }
+
+    void Dock_Changed(object s, SelectionChangedEventArgs e)
+    {
+        if (!_ready) return;
+        // remember the current size before moving
+        if (_srcOpen)
+        {
+            if (_dock is DockSide.Bottom or DockSide.Top) _panelH = Math.Max(120, sourceBorder.ActualHeight);
+            else _panelW = Math.Max(160, sourceBorder.ActualWidth);
+        }
+        _dock = (cmbDock.SelectedItem as ComboBoxItem)?.Content?.ToString() switch
+        {
+            "Top" => DockSide.Top, "Left" => DockSide.Left, "Right" => DockSide.Right, _ => DockSide.Bottom
+        };
+        ApplyDock();
+    }
+
+    // Lay out the designer + source panel + splitter for the current dock side and visibility.
+    void ApplyDock()
+    {
+        dockGrid.RowDefinitions.Clear();
+        dockGrid.ColumnDefinitions.Clear();
+        Grid.SetRow(designerHost, 0); Grid.SetColumn(designerHost, 0);
+        Grid.SetRow(dockSplitter, 0); Grid.SetColumn(dockSplitter, 0);
+        Grid.SetRow(sourceBorder, 0); Grid.SetColumn(sourceBorder, 0);
+
+        if (!_srcOpen)
+        {
+            dockGrid.RowDefinitions.Add(new RowDefinition());
+            dockGrid.ColumnDefinitions.Add(new ColumnDefinition());
+            dockSplitter.Visibility = sourceBorder.Visibility = Visibility.Collapsed;
+            return;
+        }
+        sourceBorder.Visibility = dockSplitter.Visibility = Visibility.Visible;
+
+        var star = new GridLength(1, GridUnitType.Star);
+        if (_dock is DockSide.Bottom or DockSide.Top)
+        {
+            dockGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = star });
+            dockSplitter.ResizeDirection = GridResizeDirection.Rows;
+            dockSplitter.Height = 5; dockSplitter.Width = double.NaN;
+            dockSplitter.HorizontalAlignment = HorizontalAlignment.Stretch;
+            dockSplitter.VerticalAlignment = VerticalAlignment.Center;
+            var des = new RowDefinition { Height = star };
+            var sp = new RowDefinition { Height = GridLength.Auto };
+            var pan = new RowDefinition { Height = new GridLength(_panelH) };
+            if (_dock == DockSide.Bottom)
+            {
+                dockGrid.RowDefinitions.Add(des); dockGrid.RowDefinitions.Add(sp); dockGrid.RowDefinitions.Add(pan);
+                Grid.SetRow(designerHost, 0); Grid.SetRow(dockSplitter, 1); Grid.SetRow(sourceBorder, 2);
+            }
+            else
+            {
+                dockGrid.RowDefinitions.Add(pan); dockGrid.RowDefinitions.Add(sp); dockGrid.RowDefinitions.Add(des);
+                Grid.SetRow(sourceBorder, 0); Grid.SetRow(dockSplitter, 1); Grid.SetRow(designerHost, 2);
+            }
+        }
+        else
+        {
+            dockGrid.RowDefinitions.Add(new RowDefinition { Height = star });
+            dockSplitter.ResizeDirection = GridResizeDirection.Columns;
+            dockSplitter.Width = 5; dockSplitter.Height = double.NaN;
+            dockSplitter.VerticalAlignment = VerticalAlignment.Stretch;
+            dockSplitter.HorizontalAlignment = HorizontalAlignment.Center;
+            var des = new ColumnDefinition { Width = star };
+            var sp = new ColumnDefinition { Width = GridLength.Auto };
+            var pan = new ColumnDefinition { Width = new GridLength(_panelW) };
+            if (_dock == DockSide.Right)
+            {
+                dockGrid.ColumnDefinitions.Add(des); dockGrid.ColumnDefinitions.Add(sp); dockGrid.ColumnDefinitions.Add(pan);
+                Grid.SetColumn(designerHost, 0); Grid.SetColumn(dockSplitter, 1); Grid.SetColumn(sourceBorder, 2);
+            }
+            else
+            {
+                dockGrid.ColumnDefinitions.Add(pan); dockGrid.ColumnDefinitions.Add(sp); dockGrid.ColumnDefinitions.Add(des);
+                Grid.SetColumn(sourceBorder, 0); Grid.SetColumn(dockSplitter, 1); Grid.SetColumn(designerHost, 2);
+            }
+        }
     }
 
     void LoadSource()

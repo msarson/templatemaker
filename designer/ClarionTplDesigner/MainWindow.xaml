@@ -104,14 +104,8 @@
             </StackPanel>
         </Border>
 
-        <Grid>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition x:Name="srcRow" Height="0"/>
-            </Grid.RowDefinitions>
-
-            <Grid Grid.Row="0">
+        <Grid x:Name="dockGrid">
+            <Grid x:Name="designerHost">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="22"/>
                     <RowDefinition Height="*"/>
@@ -136,11 +130,11 @@
                 </ScrollViewer>
             </Grid>
 
-            <GridSplitter x:Name="srcSplitter" Grid.Row="1" Height="5" HorizontalAlignment="Stretch"
-                          VerticalAlignment="Center" Background="#D4DAE2" ResizeBehavior="PreviousAndNext"
-                          ResizeDirection="Rows" Visibility="Collapsed"/>
+            <GridSplitter x:Name="dockSplitter" Background="#D4DAE2" ResizeBehavior="PreviousAndNext"
+                          Visibility="Collapsed"/>
 
-            <Border Grid.Row="2" BorderBrush="#DDE2E8" BorderThickness="0,1,0,0" Background="#FBFCFD">
+            <Border x:Name="sourceBorder" BorderBrush="#DDE2E8" BorderThickness="1" Background="#FBFCFD"
+                    Visibility="Collapsed">
                 <DockPanel>
                     <DockPanel DockPanel.Dock="Top" Margin="4,2" LastChildFill="False">
                         <TextBlock x:Name="srcHeader" DockPanel.Dock="Left" VerticalAlignment="Center"
@@ -149,6 +143,15 @@
                                 IsEnabled="False" Content="Apply" ToolTip="Write these source edits to the file and re-parse"/>
                         <Button DockPanel.Dock="Right" Click="RevertSrc_Click" Padding="9,1" Margin="0,0,6,0"
                                 Content="Revert" ToolTip="Discard edits and reload from disk"/>
+                        <ComboBox x:Name="cmbDock" DockPanel.Dock="Right" Width="74" Margin="0,0,10,0"
+                                  SelectionChanged="Dock_Changed" ToolTip="Dock the source panel to a side">
+                            <ComboBoxItem Content="Bottom" IsSelected="True"/>
+                            <ComboBoxItem Content="Top"/>
+                            <ComboBoxItem Content="Left"/>
+                            <ComboBoxItem Content="Right"/>
+                        </ComboBox>
+                        <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Margin="0,0,4,0"
+                                   FontSize="11" Foreground="#8A95A3" Text="Dock:"/>
                     </DockPanel>
                     <avalon:TextEditor x:Name="srcEditor" FontFamily="Consolas" FontSize="12.5"
                                        ShowLineNumbers="True" WordWrap="False" TextChanged="SrcEditor_TextChanged"

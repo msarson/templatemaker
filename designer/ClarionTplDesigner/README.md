@@ -77,7 +77,9 @@ Then **Open .tpl…** and pick e.g. `..\..\templates\AJEBackupAPP.tpl`.
   file (powered by **AvalonEdit**): directives, `%symbols`, `'strings'` and `!`/`#!` comments are coloured,
   with line numbers. **Clicking a control jumps the source to that control's line** (caret + highlight). It's
   **editable** — type changes and **Apply** writes them to the file and re-parses (refreshing the canvas);
-  **Revert** reloads from disk. (Applying re-reads the file, so save canvas edits first.)
+  **Revert** reloads from disk. (Applying re-reads the file, so save canvas edits first.) The panel **docks to
+  any side** — a *Dock:* dropdown in its header moves it **Bottom / Top / Left / Right**, with a draggable
+  splitter; it opens automatically (Bottom) when you load a file.
 - **Undo** — **Ctrl+Z** (or the *↶ Undo* button) reverts the last change, step by step, all the way back:
   moves, resizes, reparents, adds, deletes, z-order, text/coord edits, and guide changes. History is kept
   per editing session and cleared when you open a file or after a structural save.
