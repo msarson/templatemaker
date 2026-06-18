@@ -17,6 +17,7 @@ public class TplElement
     public int EndLineIndex = -1;  // 0-based line of the matching #END... (containers); -1 = single line
     public bool Deleted;           // marked for removal -> its source line(s) are dropped on Save
     public bool Inserted;          // brand-new control with no source yet -> emitted on Save
+    public bool Moved;             // existing control reparented -> its source line relocates on Save
     public string Title = "";      // tab name / box title / display text / prompt label / image file
     public string Symbol = "";     // %Symbol (prompts/images target a feq)
     public string PromptType = ""; // CHECK / @s255 / SPIN(..) / OPTION / RADIO / OPENDIALOG(..)
@@ -188,75 +189,101 @@ public static class TplParser
 
 public static class TplWriter
 {
-    /// <summary>Rewrite only the AT() of moved elements and drop deleted ones; every other byte is preserved.</summary>
+    /// <summary>
+    /// Rewrite AT() of moved controls, drop deleted ones, emit added ones, and relocate reparented
+    /// ones into their new container — every other byte is preserved.
+    /// </summary>
     public static void Save(TplDocument doc, string path)
     {
         var lines = (string[])doc.Lines.Clone();
 
-        // Collect every source line covered by a deleted element (containers span to their #END...).
+        // Lines to remove: deleted elements (containers span to #END...) and relocated controls' old line.
         var drop = new HashSet<int>();
         foreach (var tab in doc.Tabs)
             foreach (var e in Flatten(tab))
+            {
                 if (e.Deleted && e.LineIndex >= 0)
                 {
                     int end = e.EndLineIndex >= 0 ? e.EndLineIndex : e.LineIndex;
                     for (int i = e.LineIndex; i <= end && i < lines.Length; i++) drop.Add(i);
                 }
+                else if (e.Moved && !e.Inserted && e.LineIndex >= 0)
+                    drop.Add(e.LineIndex);
+            }
 
+        // In-place AT rewrite for controls that stayed put (not added/relocated/deleted).
         foreach (var tab in doc.Tabs)
             foreach (var e in Flatten(tab))
-                if (e.Dirty && !e.Deleted && !e.Inserted && e.LineIndex >= 0 && !drop.Contains(e.LineIndex))
+                if (e.Dirty && !e.Deleted && !e.Inserted && !e.Moved && e.LineIndex >= 0 && !drop.Contains(e.LineIndex))
                     lines[e.LineIndex] = ApplyAt(lines[e.LineIndex], e);
 
-        // New controls: emit their directive line(s) just before their tab's #ENDTAB.
-        var inserts = new Dictionary<int, List<string>>();
-        foreach (var tab in doc.Tabs)
+        // Emit added/relocated controls just before their (stationary) container's #END line.
+        var emit = new Dictionary<int, List<string>>();
+        void AddEmit(int anchor, IEnumerable<string> ss)
         {
-            int anchor = tab.EndLineIndex >= 0 ? tab.EndLineIndex : lines.Length;
-            foreach (var e in Flatten(tab))
-                if (e.Inserted && e != tab && !e.Deleted)
-                    foreach (var s in EmitLines(e))
-                    {
-                        if (!inserts.TryGetValue(anchor, out var list)) inserts[anchor] = list = new List<string>();
-                        list.Add(s);
-                    }
+            if (!emit.TryGetValue(anchor, out var l)) emit[anchor] = l = new List<string>();
+            l.AddRange(ss);
         }
+        foreach (var tab in doc.Tabs)
+            foreach (var owner in Flatten(tab))
+            {
+                bool stationary = (owner.Kind == TplKind.Tab || owner.Kind == TplKind.Boxed)
+                                  && !owner.Inserted && !owner.Moved && !owner.Deleted && owner.EndLineIndex >= 0;
+                if (!stationary) continue;
+                int anchor = owner.EndLineIndex;
+                foreach (var child in owner.Children)
+                    if (!child.Deleted && (child.Inserted || child.Moved))
+                        AddEmit(anchor, EmitUnit(child, lines));
+            }
 
-        var kept = new List<string>(lines.Length + 8);
+        var kept = new List<string>(lines.Length + 16);
         for (int i = 0; i < lines.Length; i++)
         {
-            if (inserts.TryGetValue(i, out var ins)) kept.AddRange(ins);   // before the #ENDTAB line
+            if (emit.TryGetValue(i, out var ins)) kept.AddRange(ins);   // before the #END... line
             if (!drop.Contains(i)) kept.Add(lines[i]);
         }
-        if (inserts.TryGetValue(lines.Length, out var tail)) kept.AddRange(tail);
+        if (emit.TryGetValue(lines.Length, out var tail)) kept.AddRange(tail);
 
         File.WriteAllText(path, string.Join(doc.Newline, kept));
     }
 
     static string Esc(string s) => (s ?? "").Replace("'", "''");
 
-    /// <summary>The source line(s) for a newly-added control.</summary>
-    static IEnumerable<string> EmitLines(TplElement e)
+    /// <summary>The source line(s) for one added/relocated control; boxes recurse over their children.</summary>
+    static IEnumerable<string> EmitUnit(TplElement e, string[] lines)
+    {
+        if (e.Kind == TplKind.Boxed && e.Inserted)
+        {
+            yield return GenLine(e);
+            foreach (var c in e.Children)
+                if (!c.Deleted)
+                    foreach (var s in EmitUnit(c, lines)) yield return s;
+            yield return "   #ENDBOXED";
+        }
+        else if (e.Inserted)
+        {
+            yield return GenLine(e);                 // freshly generated leaf
+        }
+        else if (e.LineIndex >= 0 && e.LineIndex < lines.Length)
+        {
+            yield return e.Dirty ? ApplyAt(lines[e.LineIndex], e) : lines[e.LineIndex];  // existing control, verbatim
+        }
+    }
+
+    /// <summary>Generate the directive line for a newly-added control (box = its open line only).</summary>
+    static string GenLine(TplElement e)
     {
         const string ind = "   ";
         string at = $"AT({e.X},{e.Y},{e.W},{e.H})";
-        switch (e.Kind)
+        return e.Kind switch
         {
-            case TplKind.Display:
-                yield return $"{ind}#DISPLAY('{Esc(e.Title)}'),{at}";
-                break;
-            case TplKind.Image:
-                yield return $"{ind}#IMAGE('{Esc(e.Title)}'),{at}";
-                break;
-            case TplKind.Prompt:
-                string tail = e.PromptType.Equals("CHECK", StringComparison.OrdinalIgnoreCase) ? ",DEFAULT(%TRUE)" : "";
-                yield return $"{ind}#PROMPT('{Esc(e.Title)}',{e.PromptType}),{e.Symbol},{at}{tail}";
-                break;
-            case TplKind.Boxed:
-                yield return $"{ind}#BOXED('{Esc(e.Title)}'),{at}";
-                yield return $"{ind}#ENDBOXED";
-                break;
-        }
+            TplKind.Display => $"{ind}#DISPLAY('{Esc(e.Title)}'),{at}",
+            TplKind.Image   => $"{ind}#IMAGE('{Esc(e.Title)}'),{at}",
+            TplKind.Boxed   => $"{ind}#BOXED('{Esc(e.Title)}'),{at}",
+            TplKind.Prompt  => $"{ind}#PROMPT('{Esc(e.Title)}',{e.PromptType}),{e.Symbol},{at}"
+                             + (e.PromptType.Equals("CHECK", StringComparison.OrdinalIgnoreCase) ? ",DEFAULT(%TRUE)" : ""),
+            _ => ""
+        };
     }
 
     static IEnumerable<TplElement> Flatten(TplElement e)

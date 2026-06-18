@@ -61,8 +61,14 @@
                     <TextBlock x:Name="propRefs" Foreground="#B23A2E" FontSize="11" TextWrapping="Wrap"/>
                 </Border>
                 <TextBlock Text="Text / label / file" Foreground="#5B6878" FontSize="11" Margin="0,0,0,1"/>
-                <TextBox x:Name="txtText" Margin="0,0,0,8" TextChanged="Text_Changed"
+                <TextBox x:Name="txtText" Margin="0,0,0,4" TextChanged="Text_Changed"
                          ToolTip="The control's text, label or image file. Editable for controls you add here."/>
+                <StackPanel x:Name="imgRow" Orientation="Horizontal" Margin="0,0,0,8" Visibility="Collapsed">
+                    <Button x:Name="btnBrowseImg" Click="BrowseImg_Click" Padding="10,1" Content="…"
+                            ToolTip="Browse for an image file"/>
+                    <Button Click="RefreshImg_Click" Padding="6,1" Margin="6,0,0,0" Content="↻ Refresh"
+                            ToolTip="Reload the image and re-render (use after typing a file name or changing the file)"/>
+                </StackPanel>
                 <UniformGrid Columns="2" x:Name="propGrid" IsEnabled="False">
                     <TextBlock Text="X" VerticalAlignment="Center"/>
                     <TextBox x:Name="txtX" Margin="0,2" TextChanged="Prop_Changed"/>
@@ -73,7 +79,11 @@
                     <TextBlock Text="H" VerticalAlignment="Center"/>
                     <TextBox x:Name="txtH" Margin="0,2" TextChanged="Prop_Changed"/>
                 </UniformGrid>
-                <TextBlock Text="Tip: arrow keys nudge the selection 1 unit (Shift = 5)."
+                <TextBlock x:Name="childHdr" Text="CONTROLS IN GROUP" FontWeight="Bold" Foreground="#5B6878"
+                           FontSize="11" Margin="0,14,0,2" Visibility="Collapsed"/>
+                <ListBox x:Name="lstChildren" Height="150" FontSize="11" Visibility="Collapsed"
+                         FontFamily="Consolas" SelectionChanged="Children_Select"/>
+                <TextBlock Text="Tip: arrow keys nudge the selection 1 unit (Shift = 5). Drop a control inside a group box to add it to that group; drag it out to remove it."
                            Foreground="#8A95A3" FontSize="11" TextWrapping="Wrap" Margin="0,12,0,0"/>
             </StackPanel>
         </Border>

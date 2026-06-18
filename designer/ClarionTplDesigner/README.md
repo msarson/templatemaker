@@ -30,6 +30,14 @@ Then **Open .tpl…** and pick e.g. `..\..\templates\AJEBackupAPP.tpl`.
   (rename it in the panel). On **Save** the directive line(s) are written just before the tab's `#ENDTAB`, and
   the file is re-read so the model stays in sync.
 - **Drag to move** a control — live `AT()` shown in the status bar and the Properties panel.
+- **Group containment** — drop a control inside a `#BOXED` group to make it a child of that group (its `AT`
+  becomes frame‑relative); drag it out to move it back to the tab. **Moving a group box carries all its
+  controls with it.** Selecting a group lists its contents in the Properties panel (click an entry to select
+  that control). On Save the relocated control's source line moves into/out of the box's block — verbatim
+  (styling preserved), only its `AT` updated.
+- **Images** — when an `#IMAGE` is selected the Properties panel shows a **…** browse button (pick a file;
+  a bare name is stored if it's in a known image folder, else the full path) and a **↻ Refresh** button to
+  reload the file and re‑render after you change it or type a new name.
 - **Resize handles** — select a control and drag any of the 8 handles (corners + edge midpoints) to set
   its width/height (and X/Y for top/left edges). Snaps to grid and guides just like moving.
 - **Add AT to all** — one button stamps every control with an explicit `AT(x,y,w,h)` taken from the current

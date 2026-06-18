@@ -36,6 +36,8 @@ public partial class MainWindow : Window
     double _elStartX, _elStartY;
     bool _suppressProp;
     bool _ready;          // true once XAML is fully constructed
+    List<TplElement>? _childList;     // controls listed for the selected group box
+    bool _suppressChildSel;
 
     [Flags] enum Edge { None = 0, Left = 1, Right = 2, Top = 4, Bottom = 8 }
     Edge _resizeEdge;
@@ -71,7 +73,7 @@ public partial class MainWindow : Window
         if (_doc == null) return;
         try
         {
-            bool structural = AllElements().Any(el => el.Inserted || el.Deleted);
+            bool structural = AllElements().Any(el => el.Inserted || el.Deleted || el.Moved);
             TplWriter.Save(_doc, _doc.Path);
             if (structural) ReloadFromDisk();      // re-sync the model so re-saving can't duplicate/re-drop
             status.Text = "Saved " + _doc.Path;
@@ -404,6 +406,39 @@ public partial class MainWindow : Window
         yield return @"C:\clarion12\images";
     }
 
+    // A bare file name if the picked file lives in a search dir, else the full path (both resolve & render).
+    string ChooseImageRef(string fullPath)
+    {
+        string dir = System.IO.Path.GetDirectoryName(fullPath) ?? "";
+        foreach (var sd in ImageSearchDirs())
+        {
+            try { if (string.Equals(System.IO.Path.GetFullPath(dir).TrimEnd('\\'), System.IO.Path.GetFullPath(sd).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)) return System.IO.Path.GetFileName(fullPath); }
+            catch { /* ignore bad path */ }
+        }
+        return fullPath;
+    }
+
+    void BrowseImg_Click(object s, RoutedEventArgs e)
+    {
+        if (_sel is not { Kind: TplKind.Image, Inserted: true }) return;
+        var dlg = new OpenFileDialog { Filter = "Images|*.png;*.ico;*.bmp;*.jpg;*.jpeg;*.gif|All files|*.*" };
+        try { if (_doc != null) dlg.InitialDirectory = System.IO.Path.GetDirectoryName(_doc.Path); } catch { }
+        if (dlg.ShowDialog() != true) return;
+        string file = ChooseImageRef(dlg.FileName);
+        _sel.Title = file; _sel.Dirty = true;
+        _imgCache.Remove(file);
+        Render(); Select(_sel);
+        status.Text = $"Image set to {file}.";
+    }
+
+    void RefreshImg_Click(object s, RoutedEventArgs e)
+    {
+        if (_sel is not { Kind: TplKind.Image }) return;
+        _imgCache.Remove(_sel.Title);     // bust the cache so the file is re-read from disk
+        Render(); Select(_sel);
+        status.Text = $"Refreshed image: {_sel.Title}";
+    }
+
     // ---------- z-order ----------
     ContextMenu BuildChipMenu(TplElement el)
     {
@@ -482,7 +517,33 @@ public partial class MainWindow : Window
         txtW.Text = el?.W.ToString() ?? ""; txtH.Text = el?.H.ToString() ?? "";
         txtText.Text = el?.Title ?? "";
         txtText.IsEnabled = el is { Inserted: true };   // re-titling existing controls would rewrite their line; keep to added ones
+        bool isImg = el is { Kind: TplKind.Image };
+        imgRow.Visibility = isImg ? Visibility.Visible : Visibility.Collapsed;
+        btnBrowseImg.IsEnabled = isImg && el!.Inserted;  // browsing changes the file name (only added images persist)
         _suppressProp = false;
+
+        _suppressChildSel = true;
+        if (el is { Kind: TplKind.Boxed })
+        {
+            _childList = Positionable(el).ToList();
+            lstChildren.ItemsSource = _childList.Select(c => $"{c.Kind,-7} {c.Display}").ToList();
+            childHdr.Text = $"CONTROLS IN GROUP ({_childList.Count})";
+            childHdr.Visibility = lstChildren.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            _childList = null;
+            lstChildren.ItemsSource = null;
+            childHdr.Visibility = lstChildren.Visibility = Visibility.Collapsed;
+        }
+        _suppressChildSel = false;
+    }
+
+    void Children_Select(object s, SelectionChangedEventArgs e)
+    {
+        if (_suppressChildSel || _childList == null) return;
+        int i = lstChildren.SelectedIndex;
+        if (i >= 0 && i < _childList.Count) Select(_childList[i]);
     }
 
     void Text_Changed(object s, TextChangedEventArgs e)
@@ -563,8 +624,57 @@ public partial class MainWindow : Window
     {
         if (_drag == Drag.Guide && _dragGuide != null && InRulerZone(e.GetPosition(scroller)))
             DeleteGuide(_dragGuide);
+        else if (_drag == Drag.Element && _dragEl != null && !_dragEl.IsContainer)
+            TryReparent(_dragEl);            // dropping a control may move it in/out of a group box
         canvas.ReleaseMouseCapture();
         _drag = Drag.None; _dragEl = null; _dragGuide = null;
+    }
+
+    // ---------- group containment ----------
+    void TryReparent(TplElement el)
+    {
+        double cx = el.LX + el.LW / 2, cy = el.LY + el.LH / 2;     // the control's centre
+        TplElement newParent = DeepestBoxAt(cx, cy, el) ?? _tab!;
+        if (newParent == null || newParent == el.Parent) return;
+        Reparent(el, newParent);
+    }
+
+    TplElement? DeepestBoxAt(double x, double y, TplElement exclude)
+    {
+        TplElement? best = null; int bestDepth = -1;
+        if (_tab == null) return null;
+        foreach (var b in Positionable(_tab))
+        {
+            if (b.Kind != TplKind.Boxed || b == exclude) continue;
+            if (x >= b.LX && x <= b.LX + b.LW && y >= b.LY && y <= b.LY + b.LH)
+            {
+                int depth = Depth(b);
+                if (depth > bestDepth) { bestDepth = depth; best = b; }
+            }
+        }
+        return best;
+    }
+
+    static int Depth(TplElement e)
+    {
+        int d = 0; for (var p = e.Parent; p != null; p = p.Parent) d++;
+        return d;
+    }
+
+    void Reparent(TplElement el, TplElement newParent)
+    {
+        el.Parent?.Children.Remove(el);
+        newParent.Children.Add(el);
+        el.Parent = newParent;
+        var (ox, oy) = FrameOrigin(el);            // now relative to the new container
+        el.X = (int)Math.Round(el.LX - ox);
+        el.Y = (int)Math.Round(el.LY - oy);
+        el.HasX = el.HasY = el.Dirty = true;
+        if (!el.Inserted) el.Moved = true;         // existing control: its source line must relocate
+        Render();
+        Select(el);
+        string where = newParent.Kind == TplKind.Boxed ? $"into group \"{newParent.Title}\"" : "out to the tab";
+        status.Text = $"Moved {el.Display} {where}.  Save to write it.";
     }
 
     // The pointer is "over a ruler" when it leaves the canvas viewport to the top or left,
@@ -574,6 +684,7 @@ public partial class MainWindow : Window
     void MoveElement(TplElement el, double lx, double ly)
     {
         lx = Math.Max(0, lx); ly = Math.Max(0, ly);
+        double dX = lx - el.LX, dY = ly - el.LY;       // incremental shift for any contents
         el.LX = lx; el.LY = ly;
         var (ox, oy) = FrameOrigin(el);
         el.X = (int)Math.Round(lx - ox);
@@ -581,15 +692,38 @@ public partial class MainWindow : Window
         el.HasX = el.HasY = el.Dirty = true;
         if (!el.HasW) { el.W = (int)Math.Round(el.LW); el.HasW = true; }
         if (!el.HasH) { el.H = (int)Math.Round(el.LH); el.HasH = true; }
-        if (_chips.TryGetValue(el, out var b))
-        {
-            Canvas.SetLeft(b, lx * Scale); Canvas.SetTop(b, ly * Scale);
-        }
+        PlaceChip(el);
+
+        if (el.IsContainer)                            // a group box carries its contents
+            foreach (var d in Descendants(el))
+            {
+                d.LX += dX; d.LY += dY;                // their frame-relative AT is unchanged
+                PlaceChip(d);
+            }
+
         if (el == _sel) PositionHandles(el);
         _suppressProp = true;
         txtX.Text = el.X.ToString(); txtY.Text = el.Y.ToString();
         _suppressProp = false;
         status.Text = $"{el.Display}  →  AT({el.X},{el.Y},{el.W},{el.H})";
+    }
+
+    void PlaceChip(TplElement el)
+    {
+        if (_chips.TryGetValue(el, out var b))
+        {
+            Canvas.SetLeft(b, el.LX * Scale); Canvas.SetTop(b, el.LY * Scale);
+        }
+    }
+
+    static IEnumerable<TplElement> Descendants(TplElement e)
+    {
+        foreach (var c in e.Children)
+        {
+            if (c.Deleted) continue;
+            yield return c;
+            foreach (var x in Descendants(c)) yield return x;
+        }
     }
 
     (double, double) FrameOrigin(TplElement el)
