@@ -82,8 +82,10 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         KeyDown += OnKeyDown;
-        cmbFont.ItemsSource = System.Windows.Media.Fonts.SystemFontFamilies
+        var fonts = System.Windows.Media.Fonts.SystemFontFamilies
             .Select(f => f.Source).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
+        cmbFont.ItemsSource = fonts;
+        cmbFontBar.ItemsSource = fonts;
         WireSource(anchSource);
         _srcOpen = anchSource.IsVisible;
         miViewSource.IsChecked = _srcOpen;
@@ -1216,6 +1218,10 @@ public partial class MainWindow : Window
         txtW.Text = el?.W.ToString() ?? ""; txtH.Text = el?.H.ToString() ?? "";
         txtText.Text = el?.Title ?? "";
         txtText.IsEnabled = el is { Inserted: true };   // re-titling existing controls would rewrite their line; keep to added ones
+        txtBarText.Text = el?.Title ?? "";
+        txtBarText.IsEnabled = el is { Inserted: true };
+        cmbFontBar.Text = el?.FontName ?? "";
+        txtBarSize.Text = el is { FontSize: > 0 } ? el.FontSize.ToString() : "";
         bool isImg = el is { Kind: TplKind.Image };
         imgRow.Visibility = isImg ? Visibility.Visible : Visibility.Collapsed;
         btnBrowseImg.IsEnabled = isImg && el!.Inserted;  // browsing changes the file name (only added images persist)
@@ -1341,6 +1347,33 @@ public partial class MainWindow : Window
         if (_sel == null) return;
         ApplyStyle(el => el.FontColor = null);
         colorSwatch.Background = Brushes.Transparent;
+    }
+
+    // ---------- style command bar (text / font / size act on the selection) ----------
+    void BarText_Changed(object s, TextChangedEventArgs e)
+    {
+        if (_suppressProp || _sel == null || !_sel.Inserted) return;
+        if (!_editGuard) { PushUndo(); _editGuard = true; }
+        _sel.Title = txtBarText.Text; _sel.Dirty = true;
+        if (_chips.TryGetValue(_sel, out var b) && b.Child is TextBlock tb)
+            tb.Text = _sel.Kind == TplKind.Image ? "🖼 " + _sel.Display : _sel.Display;
+        else Render();
+    }
+
+    void BarFont_Changed(object s, RoutedEventArgs e)
+    {
+        if (_suppressProp || _sel == null) return;
+        string name = (cmbFontBar.Text ?? "").Trim();
+        if (_selection.Count == 1 && name == _sel.FontName) return;
+        ApplyStyle(el => el.FontName = name);
+    }
+
+    void BarSize_Changed(object s, TextChangedEventArgs e)
+    {
+        if (_suppressProp || _sel == null) return;
+        int sz = int.TryParse(txtBarSize.Text, out var v) ? v : 0;
+        if (_selection.Count == 1 && sz == _sel.FontSize) return;
+        ApplyStyle(el => el.FontSize = sz);
     }
 
     // ---------- style command bar / menu (act on all selected) ----------

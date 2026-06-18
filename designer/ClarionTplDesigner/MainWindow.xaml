@@ -59,7 +59,8 @@
             <MenuItem Header="_Reset panel layout" Click="ResetLayout_Click"/>
         </MenuItem>
       </Menu>
-      <ToolBar DockPanel.Dock="Top">
+      <ToolBarTray DockPanel.Dock="Top">
+        <ToolBar Band="0" BandIndex="0">
             <TextBlock VerticalAlignment="Center" Margin="4,0">Part:</TextBlock>
             <ComboBox x:Name="cmbParts" Width="220" SelectionChanged="Part_Changed"
                       ToolTip="The template component to edit (extension / control / procedure / …), across the .tpl and its .tpw includes"/>
@@ -74,7 +75,24 @@
             <TextBlock VerticalAlignment="Center" Margin="4,0,2,0">Grid size</TextBlock>
             <TextBox x:Name="txtGrid" Width="32" Text="5" VerticalAlignment="Center"
                      TextChanged="GridSize_Changed"/>
-      </ToolBar>
+        </ToolBar>
+        <ToolBar Band="1" BandIndex="0">
+            <TextBlock VerticalAlignment="Center" Margin="4,0" Foreground="#5B6878">Text:</TextBlock>
+            <TextBox x:Name="txtBarText" Width="150" VerticalAlignment="Center" TextChanged="BarText_Changed"
+                     ToolTip="Caption / text / file of the selected control (added controls)"/>
+            <Separator/>
+            <TextBlock VerticalAlignment="Center" Margin="4,0" Foreground="#5B6878">Font:</TextBlock>
+            <ComboBox x:Name="cmbFontBar" Width="130" IsEditable="True" VerticalAlignment="Center"
+                      SelectionChanged="BarFont_Changed" LostFocus="BarFont_Changed"/>
+            <TextBox x:Name="txtBarSize" Width="38" Margin="4,0,0,0" VerticalAlignment="Center"
+                     TextChanged="BarSize_Changed" ToolTip="Font size (points)"/>
+            <Button Click="StyleBold_Click"    Padding="9,2" FontWeight="Bold" ToolTip="Toggle bold">B</Button>
+            <Button Click="StyleBigger_Click"  Padding="7,2" ToolTip="Larger">A▲</Button>
+            <Button Click="StyleSmaller_Click" Padding="7,2" ToolTip="Smaller">A▼</Button>
+            <Button Click="StyleColor_Click"   Padding="7,2" ToolTip="Colour…">Colour…</Button>
+            <Button Click="StyleFont_Click"    Padding="7,2" ToolTip="Font, style &amp; colour…">Font…</Button>
+        </ToolBar>
+      </ToolBarTray>
 
         <StatusBar DockPanel.Dock="Bottom">
             <TextBlock x:Name="status" Text="Open a .tpl to begin.  Drag from a ruler to add a guide; double-click a guide to delete it."/>
