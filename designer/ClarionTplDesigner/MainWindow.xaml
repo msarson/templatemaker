@@ -239,8 +239,8 @@
                                    FontSize="12" Foreground="#6E7885"/>
                       </StackPanel>
                       <ListBox x:Name="lstProblems" BorderThickness="0" Background="Transparent" FontSize="12"
-                               MouseDoubleClick="Problem_Navigate"
-                               ToolTip="Double-click a problem to jump to the control or source line"/>
+                               SelectionChanged="Problem_Navigate"
+                               ToolTip="Click a problem to select the control and its source line"/>
                     </DockPanel>
                   </avalonDock:LayoutAnchorable>
                 </avalonDock:LayoutAnchorablePane>

@@ -93,6 +93,7 @@ public partial class MainWindow
         var tabs = new TabControl { Width = _previewWidth, BorderThickness = new Thickness(1), Background = Brushes.White };
         foreach (var tab in comp.Tabs)
         {
+            if (tab.Deleted) continue;
             var sp = new StackPanel { Margin = new Thickness(10) };
             BuildFlow(sp, tab.Children);
             object header = tab.Title;
@@ -105,8 +106,12 @@ public partial class MainWindow
                     Background = Brushes.Transparent,
                     Child = new TextBlock { Text = tab.Title },
                     Tag = tab,
-                    ToolTip = "Drag this tab onto another to reorder it"
+                    ToolTip = "Drag this tab onto another to reorder it; right-click to rename or delete"
                 };
+                var tabRef = tab;
+                hdr.ContextMenu = new ContextMenu();
+                hdr.ContextMenu.Items.Add(ZItem("Rename tab…", () => RenameTab(tabRef)));
+                hdr.ContextMenu.Items.Add(ZItem("Delete tab",  () => DeleteTab(tabRef)));
                 hdr.MouseLeftButtonDown += Tab_HeaderDown;
                 hdr.MouseMove += Tab_HeaderMove;
                 hdr.MouseLeftButtonUp += Tab_HeaderUp;
@@ -499,7 +504,7 @@ public partial class MainWindow
     int TabIndexOf(TplElement node)
     {
         for (var p = node; p != null; p = p.Parent)
-            if (p.Kind == TplKind.Tab && _component != null) return _component.Tabs.IndexOf(p);
+            if (p.Kind == TplKind.Tab && _component != null) return LiveTabs().IndexOf(p);
         return -1;
     }
 

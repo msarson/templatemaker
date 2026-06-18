@@ -134,6 +134,19 @@ public partial class MainWindow : Window
         catch (Exception ex) { MessageBox.Show("Parse failed:\n" + ex.Message); }
     }
 
+    // Tabs shown in the UI: deleted ones stay in _component.Tabs (so the writer can drop them) but are hidden.
+    List<TplElement> LiveTabs() => _component == null ? new() : _component.Tabs.Where(t => !t.Deleted).ToList();
+
+    void RefreshTabSelector(int select = -1)
+    {
+        if (_component == null) return;
+        var lts = LiveTabs();
+        cmbTabs.ItemsSource = lts.Select(t => t.Title).ToList();
+        if (lts.Count == 0) { cmbTabs.SelectedIndex = -1; return; }
+        int idx = select >= 0 ? select : cmbTabs.SelectedIndex;
+        cmbTabs.SelectedIndex = Math.Min(Math.Max(idx, 0), lts.Count - 1);
+    }
+
     void PopulateParts(int partIdx, int tabIdx)
     {
         if (_doc == null) return;
@@ -259,9 +272,59 @@ public partial class MainWindow : Window
         tab.MoveAnchorLine = SheetInsertAnchor();   // insert before #ENDSHEET (after the existing tabs)
         _component.Tabs.Add(tab);
 
-        cmbTabs.ItemsSource = _component.Tabs.Select(t => t.Title).ToList();
-        cmbTabs.SelectedIndex = _component.Tabs.Count - 1;   // Tab_Changed sets _tab + renders
+        RefreshTabSelector(LiveTabs().Count - 1);            // Tab_Changed sets _tab + renders
         status.Text = $"Added tab \"{name}\".  Add controls to it, then Save.";
+    }
+
+    void RenameTab(TplElement tab)
+    {
+        if (_doc == null || _component == null) return;
+        string? name = AskText("Rename tab", "Tab caption:", tab.Title);
+        if (name == null) return;
+        PushUndo();
+        tab.Title = name;
+        if (!tab.Inserted && tab.LineIndex >= 0)      // rewrite the caption in the existing #TAB line
+        {
+            var f = _doc.Files[_component.FileIndex];
+            if (tab.LineIndex < f.Lines.Length)
+            {
+                var rx = new Regex(@"'(?:[^']|'')*'");
+                f.Lines[tab.LineIndex] = rx.Replace(f.Lines[tab.LineIndex], "'" + name.Replace("'", "''") + "'", 1);
+                f.Dirty = true;
+            }
+        }
+        RefreshTabSelector();
+        Render();
+        status.Text = $"Renamed tab to \"{name}\".  Save to write the change.";
+    }
+
+    void DeleteTab(TplElement tab)
+    {
+        if (_doc == null || _component == null) return;
+        if (LiveTabs().Count <= 1)
+        {
+            MessageBox.Show("A sheet must keep at least one tab.", "Delete tab",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        string warn = "";
+        if (!tab.Inserted)
+        {
+            var refs = ExternalReferences(tab);
+            if (refs.Count > 0)
+                warn = $"\n\nControls on this tab use {refs.Sum(r => r.Lines.Count)} symbol reference(s) elsewhere in "
+                     + "the template; deleting them may break code generation.";
+        }
+        if (MessageBox.Show($"Delete tab \"{tab.Title}\" and all of its controls?{warn}", "Delete tab",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+
+        PushUndo();
+        if (tab.Inserted) _component.Tabs.Remove(tab); else tab.Deleted = true;
+        _previewTabIndex = 0;
+        Select(null);
+        RefreshTabSelector(0);
+        Render();
+        status.Text = $"Deleted tab \"{tab.Title}\".  Save to write the change.";
     }
 
     // The line a new/last tab should be emitted before: #ENDSHEET, else just after the last tab's #ENDTAB.
@@ -460,9 +523,8 @@ public partial class MainWindow : Window
         _sel = null;
         if (_component != null)
         {
-            int ti = cmbTabs.SelectedIndex;
-            _tab = ti >= 0 && ti < _component.Tabs.Count ? _component.Tabs[ti]
-                 : (_component.Tabs.Count > 0 ? _component.Tabs[0] : null);
+            var lts = LiveTabs(); int ti = cmbTabs.SelectedIndex;
+            _tab = ti >= 0 && ti < lts.Count ? lts[ti] : (lts.Count > 0 ? lts[0] : null);
         }
         Render();
         Select(null);
@@ -879,16 +941,18 @@ public partial class MainWindow : Window
         _previewTabIndex = 0;
         Select(null);
         LoadSource();           // current part may live in a different file
-        cmbTabs.ItemsSource = _component.Tabs.Select(t => t.Title).ToList();
+        cmbTabs.ItemsSource = LiveTabs().Select(t => t.Title).ToList();
         int want = _pendingTabIdx; _pendingTabIdx = 0;
-        if (_component.Tabs.Count > 0) cmbTabs.SelectedIndex = Math.Min(Math.Max(want, 0), _component.Tabs.Count - 1);
+        var lts = LiveTabs();
+        if (lts.Count > 0) cmbTabs.SelectedIndex = Math.Min(Math.Max(want, 0), lts.Count - 1);
         else { _tab = null; Render(); }
     }
 
     void Tab_Changed(object s, SelectionChangedEventArgs e)
     {
-        if (_component == null || cmbTabs.SelectedIndex < 0 || cmbTabs.SelectedIndex >= _component.Tabs.Count) return;
-        _tab = _component.Tabs[cmbTabs.SelectedIndex];
+        var lts = LiveTabs();
+        if (_component == null || cmbTabs.SelectedIndex < 0 || cmbTabs.SelectedIndex >= lts.Count) return;
+        _tab = lts[cmbTabs.SelectedIndex];
         Select(null);
         Render();
     }
@@ -1655,8 +1719,7 @@ public partial class MainWindow : Window
         _buildingOutline = true;
         treeOutline.Items.Clear();
         string f = (txtFind?.Text ?? "").Trim();
-        if (_component != null)
-            foreach (var tab in _component.Tabs) AddOutlineNode(treeOutline.Items, tab, f);
+        foreach (var tab in LiveTabs()) AddOutlineNode(treeOutline.Items, tab, f);
         _buildingOutline = false;
         HighlightOutline(_sel);
     }
@@ -1702,7 +1765,7 @@ public partial class MainWindow : Window
     {
         if (_component == null) return;
         var tab = TabOf(el);
-        int ti = tab != null ? _component.Tabs.IndexOf(tab) : -1;
+        int ti = tab != null ? LiveTabs().IndexOf(tab) : -1;
         if (ti >= 0 && ti != cmbTabs.SelectedIndex) cmbTabs.SelectedIndex = ti;   // Tab_Changed -> Render
         Select(el);
     }
@@ -1741,7 +1804,7 @@ public partial class MainWindow : Window
         string f = txtFind.Text.Trim();
         if (f.Length == 0) return;
         TplElement? first = null, firstLeaf = null;
-        foreach (var tab in _component.Tabs)
+        foreach (var tab in LiveTabs())
         {
             foreach (var el in Flat(tab))
                 if (!el.Deleted && OutlineMatches(el, f))
@@ -1784,7 +1847,7 @@ public partial class MainWindow : Window
             if (probSummary != null) probSummary.Text = "Open a template part to check.";
             return;
         }
-        var all = _component.Tabs.SelectMany(Flat).Where(x => !x.Deleted).ToList();
+        var all = LiveTabs().SelectMany(Flat).Where(x => !x.Deleted).ToList();
 
         // duplicate %symbols within the part
         foreach (var g in all.Where(x => !string.IsNullOrEmpty(x.Symbol))
@@ -1871,12 +1934,13 @@ public partial class MainWindow : Window
         }
     }
 
-    void Problem_Navigate(object s, MouseButtonEventArgs e)
+    void Problem_Navigate(object s, SelectionChangedEventArgs e)
     {
         int i = lstProblems.SelectedIndex;
         if (i < 0 || i >= _problems.Count) return;
         var p = _problems[i];
-        if (p.El != null) SelectFromOutline(p.El);
+        if (!_srcOpen) SetSource(true);               // make sure the source panel is visible to show the line
+        if (p.El != null) SelectFromOutline(p.El);    // selects the control + scrolls/highlights its source line
         else if (p.File >= 0) GotoUsage(p.File, Math.Max(0, p.Line));
     }
 
