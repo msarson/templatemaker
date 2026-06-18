@@ -107,13 +107,13 @@
         </ToolBar>
         <ToolBar Band="2" BandIndex="0">
             <TextBlock VerticalAlignment="Center" Margin="4,0" FontWeight="SemiBold" Foreground="#5B6878">Add:</TextBlock>
-            <Button Click="Add_Label_Click"  Padding="6,2" ToolTip="Add a static text label (#DISPLAY)">Label</Button>
-            <Button Click="Add_String_Click" Padding="6,2" ToolTip="Add a string entry (#PROMPT @s255)">String</Button>
-            <Button Click="Add_Number_Click" Padding="6,2" ToolTip="Add a numeric entry (#PROMPT @n8)">Number</Button>
-            <Button Click="Add_Spin_Click"   Padding="6,2" ToolTip="Add a spin control (#PROMPT SPIN)">Spin</Button>
-            <Button Click="Add_Check_Click"  Padding="6,2" ToolTip="Add a checkbox (#PROMPT CHECK)">Check</Button>
-            <Button Click="Add_Image_Click"  Padding="6,2" ToolTip="Add an image (#IMAGE)">Image</Button>
-            <Button Click="Add_Group_Click"  Padding="6,2" ToolTip="Add a group box (#BOXED … #ENDBOXED)">Group box</Button>
+            <Button Click="Add_Label_Click"  Tag="Label"  PreviewMouseLeftButtonDown="AddBtn_Down" PreviewMouseMove="AddBtn_DragMove" Padding="6,2" ToolTip="Add #DISPLAY — click to append, or drag onto the preview to place it">Label</Button>
+            <Button Click="Add_String_Click" Tag="String" PreviewMouseLeftButtonDown="AddBtn_Down" PreviewMouseMove="AddBtn_DragMove" Padding="6,2" ToolTip="Add #PROMPT @s255 — click to append, or drag onto the preview">String</Button>
+            <Button Click="Add_Number_Click" Tag="Number" PreviewMouseLeftButtonDown="AddBtn_Down" PreviewMouseMove="AddBtn_DragMove" Padding="6,2" ToolTip="Add #PROMPT @n8 — click to append, or drag onto the preview">Number</Button>
+            <Button Click="Add_Spin_Click"   Tag="Spin"   PreviewMouseLeftButtonDown="AddBtn_Down" PreviewMouseMove="AddBtn_DragMove" Padding="6,2" ToolTip="Add #PROMPT SPIN — click to append, or drag onto the preview">Spin</Button>
+            <Button Click="Add_Check_Click"  Tag="Check"  PreviewMouseLeftButtonDown="AddBtn_Down" PreviewMouseMove="AddBtn_DragMove" Padding="6,2" ToolTip="Add #PROMPT CHECK — click to append, or drag onto the preview">Check</Button>
+            <Button Click="Add_Image_Click"  Tag="Image"  PreviewMouseLeftButtonDown="AddBtn_Down" PreviewMouseMove="AddBtn_DragMove" Padding="6,2" ToolTip="Add #IMAGE — click to append, or drag onto the preview">Image</Button>
+            <Button Click="Add_Group_Click"  Tag="Group"  PreviewMouseLeftButtonDown="AddBtn_Down" PreviewMouseMove="AddBtn_DragMove" Padding="6,2" ToolTip="Add #BOXED — click to append, or drag onto the preview">Group box</Button>
         </ToolBar>
       </ToolBarTray>
 
@@ -145,6 +145,7 @@
                                       HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
                                       ScrollChanged="Scroller_Scroll" Background="#E7EAEF">
                             <Canvas x:Name="canvas" Background="White" Width="1000" Height="1200"
+                                    AllowDrop="True" DragOver="Canvas_DragOver" Drop="Canvas_Drop"
                                     MouseMove="Canvas_MouseMove" MouseLeftButtonUp="Canvas_MouseUp"
                                     MouseLeftButtonDown="Canvas_MouseDown"/>
                         </ScrollViewer>

@@ -292,6 +292,86 @@ public partial class MainWindow
         }
     }
 
+    // ---------- drag a control type from the Add bar onto the preview to insert it ----------
+    Point _addBtnStart; bool _addBtnPressed;
+
+    static (TplKind kind, string title, string promptType, int w, int h) SpecFor(string token) => token switch
+    {
+        "String" => (TplKind.Prompt, "Text:", "@s255", 120, 11),
+        "Number" => (TplKind.Prompt, "Number:", "@n8", 80, 11),
+        "Spin"   => (TplKind.Prompt, "Count:", "SPIN(@n3,0,100)", 90, 11),
+        "Check"  => (TplKind.Prompt, "Enabled", "CHECK", 110, 11),
+        "Image"  => (TplKind.Image, "image.png", "", 16, 16),
+        "Group"  => (TplKind.Boxed, "Group", "", 200, 60),
+        _        => (TplKind.Display, "Label", "", 80, 11),
+    };
+
+    void AddBtn_Down(object s, MouseButtonEventArgs e) { _addBtnStart = e.GetPosition(null); _addBtnPressed = true; }
+
+    void AddBtn_DragMove(object s, MouseEventArgs e)
+    {
+        if (!_addBtnPressed || e.LeftButton != MouseButtonState.Pressed) return;
+        var p = e.GetPosition(null);
+        if (Math.Abs(p.X - _addBtnStart.X) > 6 || Math.Abs(p.Y - _addBtnStart.Y) > 6)
+        {
+            _addBtnPressed = false;
+            if (s is FrameworkElement fe && fe.Tag is string token)
+                DragDrop.DoDragDrop(fe, new DataObject("tplkind", token), DragDropEffects.Copy);
+        }
+    }
+
+    void Canvas_DragOver(object s, DragEventArgs e)
+    {
+        e.Effects = e.Data.GetDataPresent("tplkind") ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    void Canvas_Drop(object s, DragEventArgs e)
+    {
+        if (_doc == null || _component == null || !e.Data.GetDataPresent("tplkind")) return;
+        var (kind, title, pt, w, h) = SpecFor((string)e.Data.GetData("tplkind"));
+        var p = e.GetPosition(canvas);
+
+        if (_preview && _previewPending)             // flow preview: insert at the drop position
+        {
+            var (np, before) = PreviewDropTarget(p);
+            np ??= _tab;
+            if (np == null) return;
+            AddControlAt(kind, title, pt, w, h, np, before);
+        }
+        else if (_tab != null)                       // positioner: drop at the cursor with that AT
+        {
+            PushUndo();
+            var el = MakeControl(kind, title, pt, w, h);
+            el.Parent = _tab; _tab.Children.Add(el);
+            el.X = (int)Math.Max(0, Math.Round(p.X / Scale));
+            el.Y = (int)Math.Max(0, Math.Round(p.Y / Scale));
+            Render(); Select(el);
+            status.Text = $"Added {kind} \"{title}\" at ({el.X},{el.Y}).";
+        }
+    }
+
+    (TplElement?, TplElement?) PreviewDropTarget(Point p)
+    {
+        if (canvas.InputHitTest(p) is not DependencyObject hit) return (null, null);
+        TplElement? ctrl = null; Border? cb = null; TplElement? tabEl = null;
+        for (DependencyObject? d = hit; d != null; d = VisualTreeHelper.GetParent(d))
+        {
+            if (ctrl == null && d is Border bb && bb.Tag is TplElement te) { ctrl = te; cb = bb; }
+            if (tabEl == null && d is TabItem ti && ti.Tag is TplElement tte) tabEl = tte;
+        }
+        if (ctrl != null)
+        {
+            if (ctrl.Kind == TplKind.Boxed) return (ctrl, null);     // into the box (append)
+            var np = ctrl.Parent;
+            bool before = true;
+            try { before = canvas.TransformToVisual(cb).Transform(p).Y < cb!.ActualHeight / 2; } catch { }
+            var sibs = np?.Children; int ti = sibs?.IndexOf(ctrl) ?? -1;
+            return (np, before ? ctrl : (sibs != null && ti + 1 < sibs.Count ? sibs[ti + 1] : null));
+        }
+        return tabEl != null ? (tabEl, null) : (null, null);
+    }
+
     static bool IsAncestor(TplElement anc, TplElement node)
     {
         for (var p = node.Parent; p != null; p = p.Parent) if (p == anc) return true;

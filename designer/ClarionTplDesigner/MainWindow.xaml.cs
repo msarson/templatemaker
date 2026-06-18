@@ -227,6 +227,20 @@ public partial class MainWindow : Window
     void Add_Image_Click(object s, RoutedEventArgs e)  => AddControl(TplKind.Image, "image.png", "", 16, 16);
     void Add_Group_Click(object s, RoutedEventArgs e)  => AddControl(TplKind.Boxed, "Group", "", 200, 60);
 
+    TplElement MakeControl(TplKind kind, string title, string promptType, int w, int h)
+    {
+        var el = new TplElement
+        {
+            Kind = kind, Inserted = true, Dirty = true,
+            Title = title, PromptType = promptType,
+            Symbol = kind == TplKind.Prompt ? NewSymbol() : ""
+        };
+        _addN = (_addN + 1) % 16;
+        el.X = 12 + _addN * 4; el.Y = 12 + _addN * 6; el.W = w; el.H = h;
+        el.HasX = el.HasY = el.HasW = el.HasH = true;
+        return el;
+    }
+
     void AddControl(TplKind kind, string title, string promptType, int w, int h)
     {
         if (_doc == null || _tab == null)
@@ -236,19 +250,32 @@ public partial class MainWindow : Window
             return;
         }
         PushUndo();
-        var el = new TplElement
-        {
-            Kind = kind, Inserted = true, Dirty = true, Parent = _tab,
-            Title = title, PromptType = promptType,
-            Symbol = kind == TplKind.Prompt ? NewSymbol() : ""
-        };
-        _addN = (_addN + 1) % 16;
-        el.X = 12 + _addN * 4; el.Y = 12 + _addN * 6; el.W = w; el.H = h;
-        el.HasX = el.HasY = el.HasW = el.HasH = true;
-        _tab.Children.Add(el);
+        var el = MakeControl(kind, title, promptType, w, h);
+        el.Parent = _tab; _tab.Children.Add(el);
         Render();
         Select(el);
         status.Text = $"Added {kind} \"{title}\".  Drag to position, edit its text in the panel, then Save.";
+    }
+
+    // Insert a new control at a chosen place (used by drag-from-the-Add-bar onto the preview).
+    void AddControlAt(TplKind kind, string title, string promptType, int w, int h, TplElement newParent, TplElement? insertBefore)
+    {
+        PushUndo();
+        var el = MakeControl(kind, title, promptType, w, h);
+        el.Parent = newParent;
+        int idx = insertBefore != null ? newParent.Children.IndexOf(insertBefore) : -1;
+        if (idx >= 0) newParent.Children.Insert(idx, el); else newParent.Children.Add(el);
+
+        int pos = newParent.Children.IndexOf(el);
+        el.MoveAnchorLine = -1;
+        for (int i = pos + 1; i < newParent.Children.Count; i++)
+        {
+            var sib = newParent.Children[i];
+            if (!sib.Inserted && !sib.Deleted && sib.LineIndex >= 0) { el.MoveAnchorLine = sib.LineIndex; break; }
+        }
+        int tabIdx = TabIndexOf(newParent); if (tabIdx >= 0) _previewTabIndex = tabIdx;
+        Render(); Select(el);
+        status.Text = $"Added {kind} \"{title}\".  Save to write it.";
     }
 
     string NewSymbol()

@@ -58,6 +58,9 @@ Then **Open .tpl…** and pick e.g. `..\..\templates\AJEBackupAPP.tpl`.
   them an explicit position can move or hide the auto-generated part. **"Add AT to all" skips these prompts**
   (and warns first), so the bulk action can't pin and misplace the auto-built dropdown/`…` — you can still
   position one deliberately by dragging it.
+- **Drag‑to‑insert** — drag any **Add** button (Label/String/Number/Spin/Check/Image/Group) onto the preview
+  and drop it where you want the new control: between controls, into a group box, or onto a tab — it's inserted
+  at that spot. (Dropping on the AT positioner places it at the cursor.) Clicking the button still appends.
 - **Add controls** — an *Add:* command bar inserts new controls into the current tab: **Label** (`#DISPLAY`),
   **String** (`#PROMPT @s255`), **Number** (`#PROMPT @n8`), **Spin**, **Check** (`#PROMPT CHECK`),
   **Image** (`#IMAGE`), and **Group box** (`#BOXED … #ENDBOXED`). New controls drop onto the canvas ready to
