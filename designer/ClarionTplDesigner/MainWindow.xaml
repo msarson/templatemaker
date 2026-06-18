@@ -5,7 +5,8 @@
         Title="Clarion Template Designer" Height="780" Width="1180"
         FontFamily="Segoe UI" UseLayoutRounding="True">
     <DockPanel>
-        <ToolBar DockPanel.Dock="Top">
+      <ToolBarTray DockPanel.Dock="Top">
+        <ToolBar Band="0" BandIndex="0">
             <Button Click="Open_Click" Padding="8,2">Open .tpl…</Button>
             <Button Click="Save_Click" Padding="8,2">Save</Button>
             <Button Click="MaterializeAll_Click" Padding="8,2"
@@ -34,6 +35,17 @@
             <Button Click="Backward_Click" Padding="6,2" ToolTip="Send backward one step">↓</Button>
             <Button Click="Back_Click"     Padding="6,2" ToolTip="Send selected control to back">⤓ Back</Button>
         </ToolBar>
+        <ToolBar Band="1" BandIndex="0">
+            <TextBlock VerticalAlignment="Center" Margin="4,0" FontWeight="SemiBold" Foreground="#5B6878">Add:</TextBlock>
+            <Button Click="Add_Label_Click"  Padding="7,2" ToolTip="Add a static text label (#DISPLAY)">Label</Button>
+            <Button Click="Add_String_Click" Padding="7,2" ToolTip="Add a string entry (#PROMPT @s255)">String</Button>
+            <Button Click="Add_Number_Click" Padding="7,2" ToolTip="Add a numeric entry (#PROMPT @n8)">Number</Button>
+            <Button Click="Add_Spin_Click"   Padding="7,2" ToolTip="Add a spin control (#PROMPT SPIN)">Spin</Button>
+            <Button Click="Add_Check_Click"  Padding="7,2" ToolTip="Add a checkbox (#PROMPT CHECK)">Check</Button>
+            <Button Click="Add_Image_Click"  Padding="7,2" ToolTip="Add an image (#IMAGE)">Image</Button>
+            <Button Click="Add_Group_Click"  Padding="7,2" ToolTip="Add a group box (#BOXED … #ENDBOXED)">Group box</Button>
+        </ToolBar>
+      </ToolBarTray>
 
         <StatusBar DockPanel.Dock="Bottom">
             <TextBlock x:Name="status" Text="Open a .tpl to begin.  Drag from a ruler to add a guide; double-click a guide to delete it."/>
@@ -48,6 +60,9 @@
                         CornerRadius="3" Padding="6,4" Margin="0,0,0,8" Visibility="Collapsed">
                     <TextBlock x:Name="propRefs" Foreground="#B23A2E" FontSize="11" TextWrapping="Wrap"/>
                 </Border>
+                <TextBlock Text="Text / label / file" Foreground="#5B6878" FontSize="11" Margin="0,0,0,1"/>
+                <TextBox x:Name="txtText" Margin="0,0,0,8" TextChanged="Text_Changed"
+                         ToolTip="The control's text, label or image file. Editable for controls you add here."/>
                 <UniformGrid Columns="2" x:Name="propGrid" IsEnabled="False">
                     <TextBlock Text="X" VerticalAlignment="Center"/>
                     <TextBox x:Name="txtX" Margin="0,2" TextChanged="Prop_Changed"/>

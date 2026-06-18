@@ -23,6 +23,12 @@ Then **Open .tpl…** and pick e.g. `..\..\templates\AJEBackupAPP.tpl`.
   real font/colour, and **`#IMAGE` controls as the actual PNG/ICO** (resolved next to the `.tpl`, then in
   `C:\clarion12\accessory\template\win` and `C:\clarion12\images`; missing files fall back to a 🖼 filename
   chip). Layout honours explicit `AT(x,y)`; everything else is stacked (approximate).
+- **Add controls** — an *Add:* command bar inserts new controls into the current tab: **Label** (`#DISPLAY`),
+  **String** (`#PROMPT @s255`), **Number** (`#PROMPT @n8`), **Spin**, **Check** (`#PROMPT CHECK`),
+  **Image** (`#IMAGE`), and **Group box** (`#BOXED … #ENDBOXED`). New controls drop onto the canvas ready to
+  drag; set their text/label/filename in the Properties panel. New prompts get a unique `%NewFieldN` symbol
+  (rename it in the panel). On **Save** the directive line(s) are written just before the tab's `#ENDTAB`, and
+  the file is re-read so the model stays in sync.
 - **Drag to move** a control — live `AT()` shown in the status bar and the Properties panel.
 - **Resize handles** — select a control and drag any of the 8 handles (corners + edge midpoints) to set
   its width/height (and X/Y for top/left edges). Snaps to grid and guides just like moving.

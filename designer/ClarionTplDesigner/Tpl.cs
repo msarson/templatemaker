@@ -16,6 +16,7 @@ public class TplElement
     public int LineIndex = -1;     // 0-based line of this element's directive
     public int EndLineIndex = -1;  // 0-based line of the matching #END... (containers); -1 = single line
     public bool Deleted;           // marked for removal -> its source line(s) are dropped on Save
+    public bool Inserted;          // brand-new control with no source yet -> emitted on Save
     public string Title = "";      // tab name / box title / display text / prompt label / image file
     public string Symbol = "";     // %Symbol (prompts/images target a feq)
     public string PromptType = ""; // CHECK / @s255 / SPIN(..) / OPTION / RADIO / OPENDIALOG(..)
@@ -204,14 +205,58 @@ public static class TplWriter
 
         foreach (var tab in doc.Tabs)
             foreach (var e in Flatten(tab))
-                if (e.Dirty && !e.Deleted && e.LineIndex >= 0 && !drop.Contains(e.LineIndex))
+                if (e.Dirty && !e.Deleted && !e.Inserted && e.LineIndex >= 0 && !drop.Contains(e.LineIndex))
                     lines[e.LineIndex] = ApplyAt(lines[e.LineIndex], e);
 
-        var kept = new List<string>(lines.Length);
+        // New controls: emit their directive line(s) just before their tab's #ENDTAB.
+        var inserts = new Dictionary<int, List<string>>();
+        foreach (var tab in doc.Tabs)
+        {
+            int anchor = tab.EndLineIndex >= 0 ? tab.EndLineIndex : lines.Length;
+            foreach (var e in Flatten(tab))
+                if (e.Inserted && e != tab && !e.Deleted)
+                    foreach (var s in EmitLines(e))
+                    {
+                        if (!inserts.TryGetValue(anchor, out var list)) inserts[anchor] = list = new List<string>();
+                        list.Add(s);
+                    }
+        }
+
+        var kept = new List<string>(lines.Length + 8);
         for (int i = 0; i < lines.Length; i++)
+        {
+            if (inserts.TryGetValue(i, out var ins)) kept.AddRange(ins);   // before the #ENDTAB line
             if (!drop.Contains(i)) kept.Add(lines[i]);
+        }
+        if (inserts.TryGetValue(lines.Length, out var tail)) kept.AddRange(tail);
 
         File.WriteAllText(path, string.Join(doc.Newline, kept));
+    }
+
+    static string Esc(string s) => (s ?? "").Replace("'", "''");
+
+    /// <summary>The source line(s) for a newly-added control.</summary>
+    static IEnumerable<string> EmitLines(TplElement e)
+    {
+        const string ind = "   ";
+        string at = $"AT({e.X},{e.Y},{e.W},{e.H})";
+        switch (e.Kind)
+        {
+            case TplKind.Display:
+                yield return $"{ind}#DISPLAY('{Esc(e.Title)}'),{at}";
+                break;
+            case TplKind.Image:
+                yield return $"{ind}#IMAGE('{Esc(e.Title)}'),{at}";
+                break;
+            case TplKind.Prompt:
+                string tail = e.PromptType.Equals("CHECK", StringComparison.OrdinalIgnoreCase) ? ",DEFAULT(%TRUE)" : "";
+                yield return $"{ind}#PROMPT('{Esc(e.Title)}',{e.PromptType}),{e.Symbol},{at}{tail}";
+                break;
+            case TplKind.Boxed:
+                yield return $"{ind}#BOXED('{Esc(e.Title)}'),{at}";
+                yield return $"{ind}#ENDBOXED";
+                break;
+        }
     }
 
     static IEnumerable<TplElement> Flatten(TplElement e)

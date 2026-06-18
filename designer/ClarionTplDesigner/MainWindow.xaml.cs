@@ -69,8 +69,26 @@ public partial class MainWindow : Window
     void Save_Click(object s, RoutedEventArgs e)
     {
         if (_doc == null) return;
-        try { TplWriter.Save(_doc, _doc.Path); status.Text = "Saved " + _doc.Path; }
+        try
+        {
+            bool structural = AllElements().Any(el => el.Inserted || el.Deleted);
+            TplWriter.Save(_doc, _doc.Path);
+            if (structural) ReloadFromDisk();      // re-sync the model so re-saving can't duplicate/re-drop
+            status.Text = "Saved " + _doc.Path;
+        }
         catch (Exception ex) { MessageBox.Show("Save failed:\n" + ex.Message); }
+    }
+
+    void ReloadFromDisk()
+    {
+        if (_doc == null) return;
+        int tabIdx = cmbTabs.SelectedIndex;
+        _doc = TplParser.Parse(_doc.Path);
+        _sel = null; _z.Clear();
+        cmbTabs.ItemsSource = _doc.Tabs.Select(t => t.Title).ToList();
+        cmbTabs.SelectedIndex = tabIdx >= 0 && tabIdx < _doc.Tabs.Count ? tabIdx : (_doc.Tabs.Count > 0 ? 0 : -1);
+        _tab = cmbTabs.SelectedIndex >= 0 ? _doc.Tabs[cmbTabs.SelectedIndex] : null;
+        Render();
     }
 
     // Give every positionable control an explicit AT(x,y,w,h) from the current layout,
@@ -100,6 +118,67 @@ public partial class MainWindow : Window
         el.HasX = el.HasY = el.HasW = el.HasH = true;
         if (changed) el.Dirty = true;
         return changed;
+    }
+
+    // ---------- add controls ----------
+    int _addN;   // cascades the drop position of successive new controls
+
+    void Add_Label_Click(object s, RoutedEventArgs e)  => AddControl(TplKind.Display, "Label", "", 80, 11);
+    void Add_String_Click(object s, RoutedEventArgs e) => AddControl(TplKind.Prompt, "Text:", "@s255", 120, 11);
+    void Add_Number_Click(object s, RoutedEventArgs e) => AddControl(TplKind.Prompt, "Number:", "@n8", 80, 11);
+    void Add_Spin_Click(object s, RoutedEventArgs e)   => AddControl(TplKind.Prompt, "Count:", "SPIN(@n3,0,100)", 90, 11);
+    void Add_Check_Click(object s, RoutedEventArgs e)  => AddControl(TplKind.Prompt, "Enabled", "CHECK", 110, 11);
+    void Add_Image_Click(object s, RoutedEventArgs e)  => AddControl(TplKind.Image, "image.png", "", 16, 16);
+    void Add_Group_Click(object s, RoutedEventArgs e)  => AddControl(TplKind.Boxed, "Group", "", 200, 60);
+
+    void AddControl(TplKind kind, string title, string promptType, int w, int h)
+    {
+        if (_doc == null || _tab == null)
+        {
+            MessageBox.Show("Open a template and select a tab first.", "Add control",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        var el = new TplElement
+        {
+            Kind = kind, Inserted = true, Dirty = true, Parent = _tab,
+            Title = title, PromptType = promptType,
+            Symbol = kind == TplKind.Prompt ? NewSymbol() : ""
+        };
+        _addN = (_addN + 1) % 16;
+        el.X = 12 + _addN * 4; el.Y = 12 + _addN * 6; el.W = w; el.H = h;
+        el.HasX = el.HasY = el.HasW = el.HasH = true;
+        _tab.Children.Add(el);
+        Render();
+        Select(el);
+        status.Text = $"Added {kind} \"{title}\".  Drag to position, edit its text in the panel, then Save.";
+    }
+
+    string NewSymbol()
+    {
+        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (_doc != null)
+            foreach (var l in _doc.Lines)
+                foreach (Match m in Regex.Matches(l, @"%[A-Za-z]\w*")) used.Add(m.Value);
+        foreach (var e in AllElements())
+            if (!string.IsNullOrEmpty(e.Symbol)) used.Add(e.Symbol);
+
+        int n = 1; string sym;
+        do { sym = "%NewField" + n++; } while (used.Contains(sym));
+        return sym;
+    }
+
+    IEnumerable<TplElement> AllElements()
+    {
+        if (_doc == null) yield break;
+        foreach (var t in _doc.Tabs)
+            foreach (var e in Flat(t)) yield return e;
+    }
+    static IEnumerable<TplElement> Flat(TplElement e)
+    {
+        yield return e;
+        foreach (var c in e.Children)
+            foreach (var x in Flat(c)) yield return x;
     }
 
     // ---------- tab / render ----------
@@ -401,7 +480,20 @@ public partial class MainWindow : Window
         _suppressProp = true;
         txtX.Text = el?.X.ToString() ?? ""; txtY.Text = el?.Y.ToString() ?? "";
         txtW.Text = el?.W.ToString() ?? ""; txtH.Text = el?.H.ToString() ?? "";
+        txtText.Text = el?.Title ?? "";
+        txtText.IsEnabled = el is { Inserted: true };   // re-titling existing controls would rewrite their line; keep to added ones
         _suppressProp = false;
+    }
+
+    void Text_Changed(object s, TextChangedEventArgs e)
+    {
+        if (_suppressProp || _sel == null || !_sel.Inserted) return;
+        _sel.Title = txtText.Text;
+        _sel.Dirty = true;
+        if (_chips.TryGetValue(_sel, out var b) && b.Child is TextBlock tb)
+            tb.Text = _sel.Kind == TplKind.Image ? "🖼 " + _sel.Display : _sel.Display;
+        else
+            Render();
     }
 
     static void Highlight(Border b, bool on) =>
