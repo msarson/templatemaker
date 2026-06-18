@@ -26,9 +26,11 @@ Then **Open .tpl…** and pick e.g. `..\..\templates\AJEBackupAPP.tpl`.
   in the preview to select it** (Ctrl‑click to
   multi‑select), then change its font/size/bold/colour/text from the Style bar or right‑click → *Font &
   Colour…* / *Delete* — the preview updates live. **Drag a control onto another to reorder it** — the source
-  line moves to the new position so the prompt order (and generated code) follows. **Group boxes reorder too**,
-  moving their whole `#BOXED … #ENDBOXED` block (and contents) verbatim. (Free XY positioning stays in the AT
-  positioner; in a flow layout "move" = reorder.)
+  line moves to the new position so the prompt order (and generated code) follows. Drop a control **onto a
+  group box** to move it **into** that box, or **onto another tab's header** to move it to that tab — the
+  source line relocates into the right `#BOXED`/`#TAB` block. **Group boxes reorder too**, moving their whole
+  `#BOXED … #ENDBOXED` block (and contents) verbatim. (Free XY positioning stays in the AT positioner; in a
+  flow layout "move" = reorder/reparent.)
 - **Preview: unsaved vs saved** — the **Unsaved** toolbar toggle (or *View ▸ Preview unsaved work*) switches
   the Flow preview between your **current, unsaved work** (interactive — reflects every edit) and the **saved
   file on disk** (read‑only) — flip it to compare what you've changed against what's committed.

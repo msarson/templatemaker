@@ -93,7 +93,7 @@ public partial class MainWindow
         {
             var sp = new StackPanel { Margin = new Thickness(10) };
             BuildFlow(sp, tab.Children);
-            tabs.Items.Add(new TabItem { Header = tab.Title, Content = sp });
+            tabs.Items.Add(new TabItem { Header = tab.Title, Content = sp, Tag = tab });
         }
         _previewLines = null;
         if (tabs.Items.Count == 0) { canvas.Width = canvas.Height = 10; return; }
@@ -225,35 +225,78 @@ public partial class MainWindow
         if (reordered) status.Text = "Reordered control — Save to write the new line order.";
     }
 
-    // Drop the dragged control next to whatever sibling is under the cursor (same parent only).
+    // Drop the dragged control wherever the cursor is: reorder among siblings, move into a #BOXED,
+    // or move to another tab (drop on its header). Same-parent = reorder; different = reparent.
     bool ReorderTo(TplElement el, Point ptCanvas)
     {
         if (canvas.InputHitTest(ptCanvas) is not DependencyObject hit) return false;
-        TplElement? target = null; Border? tb = null;
+        TplElement? ctrl = null; Border? cb = null; TplElement? tabEl = null;
         for (DependencyObject? d = hit; d != null; d = VisualTreeHelper.GetParent(d))
-            if (d is Border bb && bb.Tag is TplElement te) { target = te; tb = bb; break; }
-        if (target == null || target == el || el.Parent == null || target.Parent != el.Parent) return false;
+        {
+            if (ctrl == null && d is Border bb && bb.Tag is TplElement te) { ctrl = te; cb = bb; }
+            if (tabEl == null && d is TabItem ti && ti.Tag is TplElement tte) tabEl = tte;
+        }
 
-        bool before = true;
-        try { before = canvas.TransformToVisual(tb).Transform(ptCanvas).Y < tb!.ActualHeight / 2; } catch { }
+        TplElement? newParent; TplElement? insertBefore = null;
+        if (ctrl != null)
+        {
+            if (ctrl == el) return false;
+            if (ctrl.Kind == TplKind.Boxed && el.Kind != TplKind.Boxed)
+            {
+                newParent = ctrl;                                   // a leaf dropped on a box -> into the box
+            }
+            else
+            {
+                newParent = ctrl.Parent;
+                bool before = true;
+                try { before = canvas.TransformToVisual(cb).Transform(ptCanvas).Y < cb!.ActualHeight / 2; } catch { }
+                var sibs = newParent?.Children;
+                int ti = sibs?.IndexOf(ctrl) ?? -1;
+                insertBefore = before ? ctrl : (sibs != null && ti + 1 < sibs.Count ? sibs[ti + 1] : null);
+            }
+        }
+        else if (tabEl != null) newParent = tabEl;                  // dropped on a tab (header/empty area)
+        else return false;
 
+        if (newParent == null || newParent == el || IsAncestor(el, newParent)) return false;
+        if (newParent == el.Parent && insertBefore == el) return false;
+
+        MoveTo(el, newParent, insertBefore);
+
+        int tabIdx = TabIndexOf(newParent);                        // follow the control to its (possibly new) tab
+        if (tabIdx >= 0) _previewTabIndex = tabIdx;
+        return true;
+    }
+
+    void MoveTo(TplElement el, TplElement newParent, TplElement? insertBefore)
+    {
         PushUndo();
-        var parent = el.Parent;
-        parent.Children.Remove(el);
-        int idx = parent.Children.IndexOf(target);
-        if (idx < 0) idx = parent.Children.Count;
-        parent.Children.Insert(before ? idx : idx + 1, el);
+        el.Parent?.Children.Remove(el);
+        int idx = insertBefore != null ? newParent.Children.IndexOf(insertBefore) : -1;
+        if (idx >= 0) newParent.Children.Insert(idx, el); else newParent.Children.Add(el);
+        el.Parent = newParent;
         if (!el.Inserted) el.Moved = true;
 
-        // anchor: emit before the next real sibling, else at the container end
-        int pos = parent.Children.IndexOf(el);
+        int pos = newParent.Children.IndexOf(el);
         el.MoveAnchorLine = -1;
-        for (int i = pos + 1; i < parent.Children.Count; i++)
+        for (int i = pos + 1; i < newParent.Children.Count; i++)
         {
-            var sib = parent.Children[i];
+            var sib = newParent.Children[i];
             if (!sib.Inserted && !sib.Deleted && sib.LineIndex >= 0) { el.MoveAnchorLine = sib.LineIndex; break; }
         }
-        return true;
+    }
+
+    static bool IsAncestor(TplElement anc, TplElement node)
+    {
+        for (var p = node.Parent; p != null; p = p.Parent) if (p == anc) return true;
+        return false;
+    }
+
+    int TabIndexOf(TplElement node)
+    {
+        for (var p = node; p != null; p = p.Parent)
+            if (p.Kind == TplKind.Tab && _component != null) return _component.Tabs.IndexOf(p);
+        return -1;
     }
 
     ContextMenu BuildPreviewMenu(TplElement el)
