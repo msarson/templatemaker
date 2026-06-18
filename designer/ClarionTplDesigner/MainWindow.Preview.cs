@@ -198,7 +198,7 @@ public partial class MainWindow
         if (b.Tag is not TplElement el) return;
         if ((Keyboard.Modifiers & ModifierKeys.Control) != 0) ToggleSelect(el); else Select(el);
         b.BorderBrush = _selection.Contains(el) ? new SolidColorBrush(Color.FromRgb(220, 70, 60)) : Brushes.Transparent;
-        _dragPreviewEl = el.IsPositionable ? el : null;   // leaves and group boxes can reorder by drag
+        _dragPreviewEl = el.IsPositionable || el.Kind == TplKind.Button ? el : null;   // leaves, boxes, buttons
         _dragPreviewStart = e.GetPosition(canvas);
         _dragPreviewing = false;
         b.CaptureMouse();
@@ -241,9 +241,15 @@ public partial class MainWindow
         if (ctrl != null)
         {
             if (ctrl == el) return false;
-            if (ctrl.Kind == TplKind.Boxed && el.Kind != TplKind.Boxed)
+            if (ctrl.Kind == TplKind.Boxed && el.Kind is TplKind.Prompt or TplKind.Display or TplKind.Image)
             {
-                newParent = ctrl;                                   // a leaf dropped on a box -> into the box
+                if (IsAncestor(ctrl, el))                           // already inside this box -> move it OUT (after the box)
+                {
+                    newParent = ctrl.Parent;
+                    var bsibs = newParent?.Children; int bi = bsibs?.IndexOf(ctrl) ?? -1;
+                    insertBefore = bsibs != null && bi + 1 < bsibs.Count ? bsibs[bi + 1] : null;
+                }
+                else newParent = ctrl;                              // a leaf dropped on another box -> into the box
             }
             else
             {

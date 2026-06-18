@@ -376,7 +376,7 @@ public static class TplWriter
         foreach (var tab in docTabs)
             foreach (var owner in Flatten(tab))
             {
-                bool stationary = (owner.Kind == TplKind.Tab || owner.Kind == TplKind.Boxed)
+                bool stationary = (owner.Kind is TplKind.Tab or TplKind.Boxed or TplKind.Enable or TplKind.Button)
                                   && !owner.Inserted && !owner.Moved && !owner.Deleted && owner.EndLineIndex >= 0;
                 if (!stationary) continue;
                 foreach (var child in owner.Children)

@@ -29,7 +29,8 @@ Then **Open .tpl…** and pick e.g. `..\..\templates\AJEBackupAPP.tpl`.
   line moves to the new position so the prompt order (and generated code) follows. Drop a control **onto a
   group box** to move it **into** that box, or **onto another tab's header** to move it to that tab — the
   source line relocates into the right `#BOXED`/`#TAB` block. **Group boxes reorder too**, moving their whole
-  `#BOXED … #ENDBOXED` block (and contents) verbatim. (Free XY positioning stays in the AT positioner; in a
+  `#BOXED … #ENDBOXED` block (and contents) verbatim, and **`#BUTTON` blocks move too**. Drop a control onto
+  **its own** box to move it **out** (after the box). (Free XY positioning stays in the AT positioner; in a
   flow layout "move" = reorder/reparent.)
 - **Preview: unsaved vs saved** — the **Unsaved** toolbar toggle (or *View ▸ Preview unsaved work*) switches
   the Flow preview between your **current, unsaved work** (interactive — reflects every edit) and the **saved
