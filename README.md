@@ -173,9 +173,14 @@ removed by dragging them back onto a ruler; deleting a control whose `%symbol` i
 elsewhere pops a warning so you don't break code generation. Selecting a control surfaces its **`%symbol`**
 in the Properties pad with a navigable **Uses** list (every place across all files the symbol appears — click
 to jump to that line) and a **Rename** button that renames it *everywhere at once* (prompt **+** every
-reference) so the field stays joined; newly added controls can be named the same way. The **Help** menu
-opens a built-in **User Manual** (press `F1`) and **Programmer's Reference** — beautifully formatted HTML
-guides bundled into the app (sources in `docs/`). See `designer/ClarionTplDesigner/README.md`.
+reference) so the field stays joined; newly added controls can be named the same way. Select several
+controls and **align / distribute / size them together** (Arrange menu or right-click). An **Outline**
+panel shows the whole `#SHEET`/`#TAB`/`#BOXED`/control tree with a find box; a **Problems** panel flags
+unbalanced blocks, duplicate/unused symbols, off-canvas or overlapping controls and risky auto-built
+prompts (click to jump). Added `#PROMPT` controls get a friendly **type / REQ / DEFAULT** editor, and tabs
+can be **renamed or deleted** (right-click a tab header). The **Help** menu opens a built-in **User Manual**
+(press `F1`) and **Programmer's Reference** — beautifully formatted HTML guides bundled into the app
+(sources in `docs/`). See `designer/ClarionTplDesigner/README.md`.
 
 To package everything (designer **+** templates **+** skill **+** agent) into one deliverable — .NET is
 bundled in, so nothing needs pre-installing on the target:

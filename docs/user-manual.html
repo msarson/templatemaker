@@ -82,12 +82,16 @@
     <div class="grp">Designing</div>
     <a href="#select" class="h2">Selecting controls</a>
     <a href="#move" class="h2">Move, resize, nudge</a>
+    <a href="#align" class="h2">Align &amp; distribute</a>
     <a href="#add" class="h2">Adding controls</a>
+    <a href="#prompttype" class="h2">Prompt type &amp; attributes</a>
     <a href="#props" class="h2">Properties &amp; style</a>
     <a href="#symbols" class="h2">Symbols &amp; rename</a>
     <a href="#arrange" class="h2">Z-order &amp; groups</a>
     <a href="#delete" class="h2">Deleting safely</a>
     <a href="#guides" class="h2">Rulers &amp; guides</a>
+    <a href="#outline" class="h2">Outline &amp; find</a>
+    <a href="#problems" class="h2">Problems panel</a>
     <div class="grp">Preview &amp; source</div>
     <a href="#preview" class="h2">Flow preview</a>
     <a href="#source" class="h2">Source panel</a>
@@ -181,6 +185,19 @@
        Prompts that Clarion auto-builds (dropdowns, “…” buttons) are skipped on purpose.</div>
   </section>
 
+  <section id="align">
+    <h2>Align &amp; distribute <a class="top" href="#intro">↑ top</a></h2>
+    <p>Select two or more controls (<kbd>Ctrl</kbd>/<kbd>Shift</kbd>-click), then use <b>Arrange ▸ Align</b>,
+       <b>Same size</b> and <b>Distribute</b> — or <b>right-click</b> the selection for the same menu.</p>
+    <ul>
+      <li><b>Align</b> — left / centre / right and top / middle / bottom, relative to the selection's bounds.</li>
+      <li><b>Same size</b> — match width, height or both to the largest in the selection.</li>
+      <li><b>Distribute</b> — spread three or more controls evenly (the end ones stay put).</li>
+    </ul>
+    <div class="callout tip"><b>Tip</b> Right-clicking a control that isn't in the current selection selects
+       just that one; right-click within a multi-selection to act on the whole group.</div>
+  </section>
+
   <section id="add">
     <h2>Adding controls <a class="top" href="#intro">↑ top</a></h2>
     <p>Use the <b>Insert</b> menu or the <b>Add</b> command bar to drop in a
@@ -196,6 +213,9 @@
        the left half of a tab to land before it, the right half to land after. The whole
        <code>#TAB</code>…<code>#ENDTAB</code> block — and everything in it — moves with it; save to write the
        new order.</p>
+    <p><b>Right-click a tab's header</b> to <b>Rename</b> it (the caption is rewritten in place) or
+       <b>Delete</b> it (the whole tab and its controls are removed on save — you're warned if its symbols are
+       used elsewhere, and a sheet always keeps at least one tab).</p>
     <ul>
       <li>New controls appear selected and ready to position.</li>
       <li>In <b>Flow preview</b> you can drag a control straight from the Add bar onto the exact spot
@@ -206,6 +226,21 @@
     <div class="callout tip"><b>Name it as you add it</b> A new control gets an auto field name. With it
        selected, type a name in the Properties <b>SYMBOL</b> box and click <b>Set name</b>. See
        <a href="#symbols">Symbols &amp; rename</a>.</div>
+  </section>
+
+  <section id="prompttype">
+    <h2>Prompt type &amp; attributes <a class="top" href="#intro">↑ top</a></h2>
+    <p>When you select a <code>#PROMPT</code> you add, the Properties pad shows a <b>PROMPT TYPE</b> section:</p>
+    <ul>
+      <li><b>Type</b> — pick a common picture/type (<code>@s255</code>, <code>@n8</code>, <code>CHECK</code>,
+          <code>SPIN(…)</code>, <code>DROP('A|B')</code>, <code>OPTION</code>, <code>PROCEDURE</code>…) or
+          type your own token.</li>
+      <li><b>Required (REQ)</b> — mark the entry as must-fill.</li>
+      <li><b>Default</b> — the literal placed inside <code>DEFAULT(…)</code>, e.g. <code>'AJE'</code>,
+          <code>5</code> or <code>%Symbol</code>.</li>
+    </ul>
+    <p>These are editable for controls you add; for existing controls they're shown read-only (edit them in
+       the source). See also <a href="#add">adding a tab</a> for renaming and deleting tabs.</p>
   </section>
 
   <section id="props">
@@ -263,6 +298,32 @@
       <li>Hold <kbd>Ctrl</kbd> while dragging to snap the guide to ruler segments.</li>
       <li>Drag a guide back onto a ruler to remove it, or use <b>Guides ▸ Clear guides</b>.</li>
       <li>Controls snap to guides when <b>Snap to guides</b> is on.</li>
+    </ul>
+  </section>
+
+  <section id="outline">
+    <h2>Outline &amp; find <a class="top" href="#intro">↑ top</a></h2>
+    <p>The <b>Outline</b> panel (left) shows the whole structure of the current part —
+       <code>#TAB</code> → <code>#BOXED</code> → controls — as a tree. Click a node to select that control
+       (switching tabs as needed); the tree also tracks whatever you select on the canvas.</p>
+    <p>The <b>find box</b> at the top filters the tree by control caption or <code>%symbol</code>; press
+       <kbd>Enter</kbd> to jump to the first match. Toggle the panel from <b>View ▸ Outline panel</b>.</p>
+  </section>
+
+  <section id="problems">
+    <h2>Problems panel <a class="top" href="#intro">↑ top</a></h2>
+    <p>The <b>Problems</b> panel (tabbed with Source) checks the current part and lists issues — it runs when
+       you open a template, when you save, and via <b>Edit ▸ Check for problems</b> or the panel's
+       <b>↻ Re-check</b> button. <b>Click a problem to select the offending control and highlight its source
+       line.</b></p>
+    <p>It flags:</p>
+    <ul>
+      <li>duplicate <code>%symbols</code> within the part;</li>
+      <li>negative or off-canvas positions, and overlapping controls;</li>
+      <li>explicit <code>AT</code> on prompts Clarion auto-builds (which can hide the generated part);</li>
+      <li>declared symbols never referenced elsewhere;</li>
+      <li>unbalanced <code>#SHEET</code>/<code>#TAB</code>/<code>#BOXED</code>/<code>#BUTTON</code>/<code>#ENABLE</code>
+          blocks in any file.</li>
     </ul>
   </section>
 
