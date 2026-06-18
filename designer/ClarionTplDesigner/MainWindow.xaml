@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:ClarionTplDesigner"
         xmlns:avalon="http://icsharpcode.net/sharpdevelop/avalonedit"
+        xmlns:avalonDock="https://github.com/Dirkster99/AvalonDock"
         Title="Clarion Template Designer" Height="780" Width="1180"
         FontFamily="Segoe UI" UseLayoutRounding="True">
     <DockPanel>
@@ -58,10 +59,59 @@
             <TextBlock x:Name="status" Text="Open a .tpl to begin.  Drag from a ruler to add a guide; double-click a guide to delete it."/>
         </StatusBar>
 
-        <Border DockPanel.Dock="Right" Width="230" BorderBrush="#DDE2E8" BorderThickness="1,0,0,0" Background="#FAFBFC">
-            <StackPanel Margin="10">
-                <TextBlock Text="PROPERTIES" FontWeight="Bold" Foreground="#5B6878" FontSize="11"/>
-                <TextBlock x:Name="propTitle" TextWrapping="Wrap" Margin="0,6,0,2" FontWeight="SemiBold"/>
+        <avalonDock:DockingManager x:Name="dockMgr">
+          <avalonDock:LayoutRoot>
+            <avalonDock:LayoutPanel Orientation="Horizontal">
+              <avalonDock:LayoutPanel Orientation="Vertical">
+                <avalonDock:LayoutDocumentPane>
+                  <avalonDock:LayoutDocument Title="Designer" ContentId="designer" CanClose="False" CanFloat="True">
+                    <Grid x:Name="designerHost">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="22"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="22"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Row="0" Grid.Column="0" Background="#EEF1F5" BorderBrush="#D4DAE2" BorderThickness="0,0,1,1"/>
+                        <local:RulerControl x:Name="hRuler" Grid.Row="0" Grid.Column="1" Orientation="Horizontal"
+                                            MouseLeftButtonDown="HRuler_Down" Cursor="SizeNS"/>
+                        <local:RulerControl x:Name="vRuler" Grid.Row="1" Grid.Column="0" Orientation="Vertical"
+                                            MouseLeftButtonDown="VRuler_Down" Cursor="SizeWE"/>
+                        <ScrollViewer x:Name="scroller" Grid.Row="1" Grid.Column="1"
+                                      HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                                      ScrollChanged="Scroller_Scroll" Background="#E7EAEF">
+                            <Canvas x:Name="canvas" Background="White" Width="1000" Height="1200"
+                                    MouseMove="Canvas_MouseMove" MouseLeftButtonUp="Canvas_MouseUp"
+                                    MouseLeftButtonDown="Canvas_MouseDown"/>
+                        </ScrollViewer>
+                    </Grid>
+                  </avalonDock:LayoutDocument>
+                </avalonDock:LayoutDocumentPane>
+                <avalonDock:LayoutAnchorablePane DockHeight="250">
+                  <avalonDock:LayoutAnchorable x:Name="anchSource" Title="Source" ContentId="source" CanClose="True">
+                    <DockPanel Background="#FBFCFD">
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="4,3">
+                            <Button x:Name="btnApplySrc" Click="ApplySrc_Click" Padding="9,1" IsEnabled="False"
+                                    Content="Apply" ToolTip="Write these source edits to the file and re-parse"/>
+                            <Button Click="RevertSrc_Click" Padding="9,1" Margin="6,0,0,0"
+                                    Content="Revert" ToolTip="Discard edits and reload from disk"/>
+                            <TextBlock x:Name="srcHeader" VerticalAlignment="Center" Margin="10,0,0,0"
+                                       FontSize="11" Foreground="#8A95A3" Text=""/>
+                        </StackPanel>
+                        <avalon:TextEditor x:Name="srcEditor" FontFamily="Consolas" FontSize="12.5"
+                                           ShowLineNumbers="True" WordWrap="False" TextChanged="SrcEditor_TextChanged"
+                                           HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"/>
+                    </DockPanel>
+                  </avalonDock:LayoutAnchorable>
+                </avalonDock:LayoutAnchorablePane>
+              </avalonDock:LayoutPanel>
+              <avalonDock:LayoutAnchorablePane DockWidth="250">
+                <avalonDock:LayoutAnchorable x:Name="anchProps" Title="Properties" ContentId="props" CanClose="False">
+                  <ScrollViewer VerticalScrollBarVisibility="Auto" Background="#FAFBFC">
+                    <StackPanel Margin="10">
+                <TextBlock x:Name="propTitle" TextWrapping="Wrap" Margin="0,2,0,2" FontWeight="SemiBold"/>
                 <TextBlock x:Name="propKind" Foreground="#8A95A3" FontSize="11" Margin="0,0,0,8"/>
                 <Border x:Name="propTypeBox" Background="#FFF7E8" BorderBrush="#EAD9A6" BorderThickness="1"
                         CornerRadius="3" Padding="6,4" Margin="0,0,0,8" Visibility="Collapsed">
@@ -101,63 +151,12 @@
                          FontFamily="Consolas" SelectionChanged="Children_Select"/>
                 <TextBlock Text="Tip: arrow keys nudge the selection 1 unit (Shift = 5). Drop a control inside a group box to add it to that group; drag it out to remove it."
                            Foreground="#8A95A3" FontSize="11" TextWrapping="Wrap" Margin="0,12,0,0"/>
-            </StackPanel>
-        </Border>
-
-        <Grid x:Name="dockGrid">
-            <Grid x:Name="designerHost">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="22"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="22"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-
-                <Border Grid.Row="0" Grid.Column="0" Background="#EEF1F5" BorderBrush="#D4DAE2" BorderThickness="0,0,1,1"/>
-                <local:RulerControl x:Name="hRuler" Grid.Row="0" Grid.Column="1" Orientation="Horizontal"
-                                    MouseLeftButtonDown="HRuler_Down" Cursor="SizeNS"/>
-                <local:RulerControl x:Name="vRuler" Grid.Row="1" Grid.Column="0" Orientation="Vertical"
-                                    MouseLeftButtonDown="VRuler_Down" Cursor="SizeWE"/>
-
-                <ScrollViewer x:Name="scroller" Grid.Row="1" Grid.Column="1"
-                              HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
-                              ScrollChanged="Scroller_Scroll" Background="#E7EAEF">
-                    <Canvas x:Name="canvas" Background="White" Width="1000" Height="1200"
-                            MouseMove="Canvas_MouseMove" MouseLeftButtonUp="Canvas_MouseUp"
-                            MouseLeftButtonDown="Canvas_MouseDown"/>
-                </ScrollViewer>
-            </Grid>
-
-            <GridSplitter x:Name="dockSplitter" Background="#D4DAE2" ResizeBehavior="PreviousAndNext"
-                          Visibility="Collapsed"/>
-
-            <Border x:Name="sourceBorder" BorderBrush="#DDE2E8" BorderThickness="1" Background="#FBFCFD"
-                    Visibility="Collapsed">
-                <DockPanel>
-                    <DockPanel DockPanel.Dock="Top" Margin="4,2" LastChildFill="False">
-                        <TextBlock x:Name="srcHeader" DockPanel.Dock="Left" VerticalAlignment="Center"
-                                   FontSize="11" Foreground="#5B6878" Text="SOURCE"/>
-                        <Button x:Name="btnApplySrc" DockPanel.Dock="Right" Click="ApplySrc_Click" Padding="9,1"
-                                IsEnabled="False" Content="Apply" ToolTip="Write these source edits to the file and re-parse"/>
-                        <Button DockPanel.Dock="Right" Click="RevertSrc_Click" Padding="9,1" Margin="0,0,6,0"
-                                Content="Revert" ToolTip="Discard edits and reload from disk"/>
-                        <ComboBox x:Name="cmbDock" DockPanel.Dock="Right" Width="74" Margin="0,0,10,0"
-                                  SelectionChanged="Dock_Changed" ToolTip="Dock the source panel to a side">
-                            <ComboBoxItem Content="Bottom" IsSelected="True"/>
-                            <ComboBoxItem Content="Top"/>
-                            <ComboBoxItem Content="Left"/>
-                            <ComboBoxItem Content="Right"/>
-                        </ComboBox>
-                        <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Margin="0,0,4,0"
-                                   FontSize="11" Foreground="#8A95A3" Text="Dock:"/>
-                    </DockPanel>
-                    <avalon:TextEditor x:Name="srcEditor" FontFamily="Consolas" FontSize="12.5"
-                                       ShowLineNumbers="True" WordWrap="False" TextChanged="SrcEditor_TextChanged"
-                                       HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"/>
-                </DockPanel>
-            </Border>
-        </Grid>
+                    </StackPanel>
+                  </ScrollViewer>
+                </avalonDock:LayoutAnchorable>
+              </avalonDock:LayoutAnchorablePane>
+            </avalonDock:LayoutPanel>
+          </avalonDock:LayoutRoot>
+        </avalonDock:DockingManager>
     </DockPanel>
 </Window>
