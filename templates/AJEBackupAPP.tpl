@@ -17,7 +17,7 @@
  #TAB('About')
    #IMAGE('AJEico_about.png'),AT(6,5,14,14)
    #DISPLAY('Welcome'),AT(26,5,280,15),PROP(PROP:FontColor,0794E1FH),PROP(PROP:FontStyle,700),PROP(PROP:FontSize,11),PROP(PROP:Font,'Segoe UI')
-   #DISPLAY('Automatic, versioned backups every time you compile.'),PROP(PROP:FontColor,06E6E6EH),PROP(PROP:FontSize,8),PROP(PROP:Font,'Segoe UI')
+   #DISPLAY('Automatic, versioned backups every time you compile.'),PROP(PROP:FontColor,06E6E6EH),PROP(PROP:FontSize,8),PROP(PROP:Font,'Segoe UI'),AT(5,0,240,11)
    #DISPLAY('')
    #BOXED('Automatic Backup for Clarion'),SECTION
    #IMAGE('Box Automatic Backup APP.png'),AT(9,0)
@@ -27,7 +27,7 @@
    #DISPLAY('    www.DeveloperTeam.com.ar'),AT(65,64),PROP(PROP:FontColor,0808080H),PROP(PROP:Font,'Segoe UI')
    #DISPLAY(''),AT(65,76)
    #ENDBOXED
-   #DISPLAY('Tip: open the Instructions tab to get started.'),PROP(PROP:FontColor,0808080H),PROP(PROP:Font,'Segoe UI'),PROP(PROP:FontSize,8)
+   #DISPLAY('Tip: open the Instructions tab to get started.'),PROP(PROP:FontColor,0808080H),PROP(PROP:Font,'Segoe UI'),PROP(PROP:FontSize,8),AT(5,125,240,11)
    #ENDTAB
   #TAB('Configuration')
     #IMAGE('AJEico_config.png'),AT(6,5,14,14)
@@ -124,14 +124,14 @@
     #DISPLAY('From Alejandro J. Elias    -    www.DeveloperTeam.com.ar'),PROP(PROP:FontColor,0808080H),PROP(PROP:Font,'Segoe UI'),PROP(PROP:FontSize,8)
   #ENDTAB
   #TAB('Instructions')
-    #IMAGE('AJEico_help.png'),AT(6,5,14,14)
-    #DISPLAY('Instructions'),AT(26,5,280,15),PROP(PROP:FontColor,0794E1FH),PROP(PROP:FontStyle,700),PROP(PROP:FontSize,11),PROP(PROP:Font,'Segoe UI')
+    #IMAGE('AJEico_help.png'),AT(5,5,14,14)
+    #DISPLAY('Instructions'),AT(25,5,280,15),PROP(PROP:FontColor,0794E1FH),PROP(PROP:FontStyle,700),PROP(PROP:FontSize,11),PROP(PROP:Font,'Segoe UI')
     #BOXED('How to use Automatic Backup APP'),SECTION
-      #DISPLAY('What it does'),PROP(PROP:FontColor,0794E1FH),PROP(PROP:FontStyle,700),PROP(PROP:Font,'Segoe UI')
+      #DISPLAY('What it does'),PROP(PROP:FontColor,0794E1FH),PROP(PROP:FontStyle,700),PROP(PROP:Font,'Segoe UI'),AT(29,8,240,11)
       #DISPLAY('After each successful compile it makes a versioned backup of your')
       #DISPLAY('APP, DCT, DCTX and TXA (plus any extra files) into your backup folders.')
       #DISPLAY('')
-      #DISPLAY('Setup'),PROP(PROP:FontColor,0808000H),PROP(PROP:FontStyle,700),PROP(PROP:Font,'Segoe UI')
+      #DISPLAY('Setup'),PROP(PROP:FontColor,0808000H),PROP(PROP:FontStyle,700),PROP(PROP:Font,'Segoe UI'),AT(9,63,240,11)
       #DISPLAY('1. Add this Global Extension to the application (once).')
       #DISPLAY('2. Configuration tab: tick Enable Backup APP, set the General Path,')
       #DISPLAY('   and add one or more destinations under Path For Backups.')
@@ -140,7 +140,7 @@
       #DISPLAY('5. Settings tab: history window, database type, optional REST API URL.')
       #DISPLAY('6. License tab: enter your User Name and Serial Number.')
       #DISPLAY('')
-      #DISPLAY('Notes'),PROP(PROP:FontColor,00078C8H),PROP(PROP:FontStyle,700),PROP(PROP:Font,'Segoe UI')
+      #DISPLAY('Notes'),PROP(PROP:FontColor,00078C8H),PROP(PROP:FontStyle,700),PROP(PROP:Font,'Segoe UI'),AT(14,193,240,11)
       #DISPLAY('- The build number increases automatically on every compile.')
       #DISPLAY('- It always keeps the last ten versions, regardless of the days setting.')
       #DISPLAY('- The backup runs after the application is generated and compiled.')

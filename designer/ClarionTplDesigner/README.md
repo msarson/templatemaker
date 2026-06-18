@@ -33,8 +33,9 @@ Then **Open .tpl…** and pick e.g. `..\..\templates\AJEBackupAPP.tpl`.
   you can see and grab controls hidden underneath. This is a *view* aid in the designer; it does not reorder
   the generated source.
 - **Rulers** (top + left) in dialog units, with a live cursor marker.
-- **Guides** — drag from a ruler (top ruler → vertical guide, left ruler → horizontal guide), or use the
-  *+ V/H guide* buttons. Drag a guide to reposition; double‑click to delete.
+- **Guides** — drag *down* from the top ruler for a horizontal guide, *right* from the left ruler for a
+  vertical guide (or use the *+ V/H guide* buttons). Hold **Ctrl** while dragging to snap the guide to the
+  ruler's labelled segments. Drag a guide to reposition; double‑click to delete.
 - **Snapping** — to the grid (configurable size) and to guides; toggle each independently.
 - **Properties panel** — edit X/Y/W/H directly; arrow keys nudge (Shift = ×5).
 - **Save** rewrites each moved control's `AT()` in place; every other byte (PROPs, symbols, and the whole

@@ -49,6 +49,8 @@ templates/                      # ready-to-register Clarion templates
     myPie.tpl                   #     global helper + procedure extension
   myFontChanger/                #   global + per-list font picker (see below)
     myFontChanger.tpl
+designer/ClarionTplDesigner/    # WPF visual designer for the prompt UI (see below)
+installer/                      # builds the installer + a portable single-file exe
 README.md
 ```
 
@@ -156,6 +158,23 @@ cp agents/clarion-template-pro.md ~/.claude/agents/
 ```
 
 Restart Claude Code (or start a new session) so the skill and agent are picked up.
+
+## Visual designer & installer
+
+`designer/ClarionTplDesigner/` is a **.NET 9 / WPF** visual designer for a template's *prompt UI*:
+open a `.tpl`, see each `#TAB`'s controls at their real `AT()` positions (icons render as the actual
+PNGs), then **drag, resize, snap to a grid/guides, and re-order** them — and save, rewriting only the
+`AT()` values. See `designer/ClarionTplDesigner/README.md`.
+
+To package everything (designer **+** templates **+** skill **+** agent) into one deliverable — .NET is
+bundled in, so nothing needs pre-installing on the target:
+
+```powershell
+pwsh installer\build-installer.ps1   # -> installer\Output\ClarionTemplateToolsSetup.exe (full installer)
+pwsh installer\build-portable.ps1    # -> run\ClarionTemplateDesigner.exe (portable single-file exe)
+```
+
+See `installer/README.md` for what each option installs.
 
 ## How to use
 

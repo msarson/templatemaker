@@ -375,10 +375,14 @@ public partial class MainWindow : Window
         else if (_drag == Drag.Guide && _dragGuide != null)
         {
             double v = (_dragGuide.Vertical ? p.X : p.Y) / Scale;
-            if (chkSnapGrid.IsChecked == true) v = Math.Round(v / GridStep) * GridStep;
+            bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
+            int seg = _dragGuide.Vertical ? hRuler.Step : vRuler.Step;   // labelled ruler segment
+            if (ctrl) v = Math.Round(v / seg) * seg;                     // Ctrl: snap to ruler segments
+            else if (chkSnapGrid.IsChecked == true) v = Math.Round(v / GridStep) * GridStep;
             _dragGuide.Dlu = Math.Max(0, Math.Round(v));
             PositionGuide(_dragGuide);
-            status.Text = $"{(_dragGuide.Vertical ? "V" : "H")} guide @ {_dragGuide.Dlu} DLU";
+            status.Text = $"{(_dragGuide.Vertical ? "V" : "H")} guide @ {_dragGuide.Dlu} DLU"
+                        + (ctrl ? $"  (snap {seg})" : "");
         }
     }
 
@@ -532,10 +536,10 @@ public partial class MainWindow : Window
         _guides.Clear();
     }
 
-    void HRuler_Down(object s, MouseButtonEventArgs e)   // top ruler -> vertical guide
-        => StartGuide(true, ((e.GetPosition(hRuler).X + scroller.HorizontalOffset) / Scale));
-    void VRuler_Down(object s, MouseButtonEventArgs e)   // left ruler -> horizontal guide
-        => StartGuide(false, ((e.GetPosition(vRuler).Y + scroller.VerticalOffset) / Scale));
+    void HRuler_Down(object s, MouseButtonEventArgs e)   // top ruler -> horizontal guide (pull it down)
+        => StartGuide(false, ((e.GetPosition(hRuler).Y + scroller.VerticalOffset) / Scale));
+    void VRuler_Down(object s, MouseButtonEventArgs e)   // left ruler -> vertical guide (pull it right)
+        => StartGuide(true, ((e.GetPosition(vRuler).X + scroller.HorizontalOffset) / Scale));
 
     void StartGuide(bool vertical, double dlu)
     {

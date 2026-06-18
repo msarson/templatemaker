@@ -1,0 +1,6 @@
+# Portable single-file build output (large, regenerate with installer\build-portable.ps1)
+run/
+
+# Build artifacts
+**/bin/
+**/obj/
