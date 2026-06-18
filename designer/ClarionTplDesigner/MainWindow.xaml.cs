@@ -11,6 +11,7 @@ using System.Windows.Shapes;
 using System.Text.RegularExpressions;
 using ICSharpCode.AvalonEdit.Highlighting;
 using ICSharpCode.AvalonEdit.Highlighting.Xshd;
+using ICSharpCode.AvalonEdit.Rendering;
 using AvalonDock.Layout;
 using AvalonDock.Layout.Serialization;
 using Microsoft.Win32;
@@ -55,6 +56,7 @@ public partial class MainWindow : Window
     bool _gestureChanged;
     bool _editGuard;                  // one undo entry per X/Y/W/H or text editing burst
     const int MaxUndo = 100;
+    readonly LineHighlighter _lineHi = new();   // highlights selected controls' lines in the source
     bool _srcOpen;                    // source panel visible
     bool _srcDirty, _loadingSrc;      // editor has unapplied edits / suppress TextChanged while loading
     IHighlightingDefinition? _clarionHl;
@@ -87,6 +89,7 @@ public partial class MainWindow : Window
         miViewSource.IsChecked = _srcOpen;
         srcMap.GoToLine += ln => srcEditor.ScrollToLine(Math.Min(srcEditor.Document?.LineCount ?? 1, ln + 1));
         srcEditor.TextArea.TextView.ScrollOffsetChanged += (_, _) => UpdateMinimapViewport();
+        srcEditor.TextArea.TextView.BackgroundRenderers.Add(_lineHi);
         _ready = true;
 
         // remember panel contents + the pristine layout, then restore the user's saved layout
@@ -533,6 +536,7 @@ public partial class MainWindow : Window
         _srcDirty = false; btnApplySrc.IsEnabled = false;
         srcHeader.Text = f == null ? "SOURCE" : $"SOURCE — {System.IO.Path.GetFileName(f.Path)}";
         RefreshMinimap();
+        UpdateSourceHighlights();
     }
 
     void SrcEditor_TextChanged(object? s, EventArgs e)
@@ -565,6 +569,7 @@ public partial class MainWindow : Window
 
     void ScrollSourceTo(TplElement? el)
     {
+        UpdateSourceHighlights();
         if (!_srcOpen || el == null || el.LineIndex < 0) return;
         int line = el.LineIndex + 1;
         if (line < 1 || line > srcEditor.Document.LineCount) return;
@@ -572,6 +577,16 @@ public partial class MainWindow : Window
         srcEditor.CaretOffset = dl.Offset;
         srcEditor.Select(dl.Offset, dl.Length);
         srcEditor.ScrollToLine(line);
+    }
+
+    // Band-highlight every selected control's source line in the editor.
+    void UpdateSourceHighlights()
+    {
+        _lineHi.Lines.Clear();
+        if (_srcOpen)
+            foreach (var el in _selection)
+                if (el.LineIndex >= 0) _lineHi.Lines.Add(el.LineIndex + 1);
+        srcEditor.TextArea.TextView.InvalidateLayer(KnownLayer.Selection);
     }
     static IEnumerable<TplElement> Flat(TplElement e)
     {

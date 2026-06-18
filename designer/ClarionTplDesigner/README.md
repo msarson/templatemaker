@@ -88,6 +88,8 @@ Then **Open .tpl…** and pick e.g. `..\..\templates\AJEBackupAPP.tpl`.
   and **Show minimap**. These (plus zoom and grid size) are **remembered between sessions**.
 - **Minimap** — a code‑overview strip beside the source (each line a coloured bar — comments/directives/symbols
   — with a viewport box); click or drag it to jump the editor. Toggle via *Preferences ▸ Show minimap*.
+- **Selection ↔ source** — selecting one or several controls band‑highlights their lines in the Source panel
+  (and scrolls to the primary), so a multi‑selection lights up every matching line at once.
 - **Click vs. drag** — clicking a control only *selects* it; it moves only once you actually drag past a few
   pixels (so snap‑to‑grid no longer nudges a control on a plain click).
 - **Multi‑select** — **Ctrl+click** toggles, **Shift+click** adds, or **drag a marquee** on empty canvas to
