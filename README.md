@@ -165,8 +165,8 @@ Restart Claude Code (or start a new session) so the skill and agent are picked u
 open a `.tpl`, see each `#TAB`'s controls at their real `AT()` positions (icons render as the actual
 PNGs), then **drag, resize, snap to a grid/guides, re-order, add, delete, and group** controls — and save,
 rewriting only the `AT()` values (plus dropping deleted lines and relocating reparented ones). An *Add:*
-command bar inserts new Label/String/Number/Spin/Check/Image/Group controls; dropping a control into a
-group box makes it a child (and moving the box carries its contents); guides pull from the rulers and are
+command bar inserts new Label/String/Number/Spin/Check/Image/Group controls — and a whole new `#TAB`;
+dropping a control into a group box makes it a child (and moving the box carries its contents); guides pull from the rulers and are
 removed by dragging them back onto a ruler; deleting a control whose `%symbol` is still referenced
 elsewhere pops a warning so you don't break code generation. Selecting a control surfaces its **`%symbol`**
 in the Properties pad with a navigable **Uses** list (every place across all files the symbol appears — click

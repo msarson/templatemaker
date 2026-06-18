@@ -93,6 +93,7 @@ public class TplComponent
     public string Description = "";
     public int FileIndex;            // index into TplDocument.Files
     public int StartLine, EndLine;   // line range within that file
+    public int SheetEnd = -1;        // line index of this component's #ENDSHEET (anchor for inserting a new #TAB)
     public readonly List<TplElement> Tabs = new();
     public bool HasSheet => Tabs.Count > 0;
 }
@@ -202,7 +203,7 @@ public static class TplParser
                     if (inSheet) continue;
                     inSheet = true; stack.Clear(); stack.Push(sheetRoot); continue;
                 case "ENDSHEET":
-                    if (inSheet) return;          // first sheet of the component only
+                    if (inSheet) { comp.SheetEnd = i; return; }   // first sheet of the component only
                     continue;
             }
             if (!inSheet) continue;
@@ -389,6 +390,11 @@ public static class TplWriter
                     }
             }
 
+        // Inserted top-level #TABs aren't children of a stationary owner — emit them before #ENDSHEET.
+        foreach (var tab in docTabs)
+            if (tab.Kind == TplKind.Tab && tab.Inserted && !tab.Deleted && tab.MoveAnchorLine >= 0)
+                AddEmit(tab.MoveAnchorLine, EmitUnit(tab, lines));
+
         var kept = new List<string>(lines.Length + 16);
         for (int i = 0; i < lines.Length; i++)
         {
@@ -405,7 +411,15 @@ public static class TplWriter
     /// <summary>The source line(s) for one added/relocated control; boxes recurse over their children.</summary>
     static IEnumerable<string> EmitUnit(TplElement e, string[] lines)
     {
-        if (e.Kind == TplKind.Boxed && e.Inserted)
+        if (e.Kind == TplKind.Tab && e.Inserted)
+        {
+            yield return GenLine(e);
+            foreach (var c in e.Children)
+                if (!c.Deleted)
+                    foreach (var s in EmitUnit(c, lines)) yield return s;
+            yield return "   #ENDTAB";
+        }
+        else if (e.Kind == TplKind.Boxed && e.Inserted)
         {
             yield return GenLine(e);
             foreach (var c in e.Children)
@@ -480,6 +494,7 @@ public static class TplWriter
         string at = $"AT({e.X},{e.Y},{e.W},{e.H})";
         return e.Kind switch
         {
+            TplKind.Tab     => $"{ind}#TAB('{Esc(e.Title)}')",
             TplKind.Display => $"{ind}#DISPLAY('{Esc(e.Title)}'),{at}",
             TplKind.Image   => $"{ind}#IMAGE('{Esc(e.Title)}'),{at}",
             TplKind.Boxed   => $"{ind}#BOXED('{Esc(e.Title)}'),{at}",

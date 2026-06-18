@@ -27,6 +27,8 @@
             <MenuItem Header="_Check box" Click="Add_Check_Click"/>
             <MenuItem Header="_Image" Click="Add_Image_Click"/>
             <MenuItem Header="_Group box" Click="Add_Group_Click"/>
+            <Separator/>
+            <MenuItem Header="New _Tab…" Click="AddTab_Click"/>
         </MenuItem>
         <MenuItem Header="_Arrange">
             <MenuItem Header="Bring to _Front" Click="Front_Click"/>
@@ -120,6 +122,8 @@
             <Button Click="Add_Check_Click"  Tag="Check"  PreviewMouseLeftButtonDown="AddBtn_Down" PreviewMouseMove="AddBtn_DragMove" Padding="6,2" ToolTip="Add #PROMPT CHECK — click to append, or drag onto the preview">Check</Button>
             <Button Click="Add_Image_Click"  Tag="Image"  PreviewMouseLeftButtonDown="AddBtn_Down" PreviewMouseMove="AddBtn_DragMove" Padding="6,2" ToolTip="Add #IMAGE — click to append, or drag onto the preview">Image</Button>
             <Button Click="Add_Group_Click"  Tag="Group"  PreviewMouseLeftButtonDown="AddBtn_Down" PreviewMouseMove="AddBtn_DragMove" Padding="6,2" ToolTip="Add #BOXED — click to append, or drag onto the preview">Group box</Button>
+            <Separator/>
+            <Button Click="AddTab_Click" Padding="6,2" ToolTip="Add a new #TAB to this part's sheet">+ Tab</Button>
         </ToolBar>
       </ToolBarTray>
 

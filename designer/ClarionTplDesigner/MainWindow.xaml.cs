@@ -232,6 +232,66 @@ public partial class MainWindow : Window
     void Add_Image_Click(object s, RoutedEventArgs e)  => AddControl(TplKind.Image, "image.png", "", 16, 16);
     void Add_Group_Click(object s, RoutedEventArgs e)  => AddControl(TplKind.Boxed, "Group", "", 200, 60);
 
+    void AddTab_Click(object s, RoutedEventArgs e) => AddTab();
+
+    // Add a new #TAB to the current part's #SHEET (inserted before #ENDSHEET, after the existing tabs).
+    void AddTab()
+    {
+        if (_doc == null || _component == null)
+        {
+            MessageBox.Show("Open a template and pick a part first.", "New tab",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        string? name = AskText("New tab", "Tab caption:", "New Tab");
+        if (name == null) return;                       // cancelled
+        if (name.Trim().Length == 0) name = "New Tab";
+
+        PushUndo();
+        var tab = new TplElement { Kind = TplKind.Tab, Inserted = true, Title = name };
+        // anchor: insert before #ENDSHEET, else just after the last well-formed tab's #ENDTAB
+        int anchor = _component.SheetEnd;
+        if (anchor < 0)
+        {
+            var ends = _component.Tabs.Where(t => !t.Inserted && !t.Deleted && t.EndLineIndex >= 0)
+                                      .Select(t => t.EndLineIndex);
+            anchor = ends.Any() ? ends.Max() + 1 : (CurrentFile()?.Lines.Length ?? 0);
+        }
+        tab.MoveAnchorLine = anchor;
+        _component.Tabs.Add(tab);
+
+        cmbTabs.ItemsSource = _component.Tabs.Select(t => t.Title).ToList();
+        cmbTabs.SelectedIndex = _component.Tabs.Count - 1;   // Tab_Changed sets _tab + renders
+        status.Text = $"Added tab \"{name}\".  Add controls to it, then Save.";
+    }
+
+    // A small modal text prompt (we avoid raw input boxes; this keeps the look consistent).
+    string? AskText(string title, string label, string initial)
+    {
+        var dlg = new Window
+        {
+            Title = title, Owner = this, Width = 360, SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner, ResizeMode = ResizeMode.NoResize,
+            WindowStyle = WindowStyle.ToolWindow, Background = new SolidColorBrush(Color.FromRgb(0xFA, 0xFB, 0xFC))
+        };
+        var root = new StackPanel { Margin = new Thickness(16) };
+        root.Children.Add(new TextBlock { Text = label, Margin = new Thickness(0, 0, 0, 6) });
+        var box = new TextBox { Text = initial };
+        root.Children.Add(box);
+        dlg.Loaded += (_, __) => { box.Focus(); box.SelectAll(); };
+        var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
+                                   Margin = new Thickness(0, 14, 0, 0) };
+        var ok = new Button { Content = "OK", IsDefault = true, Padding = new Thickness(16, 3, 16, 3), MinWidth = 74 };
+        var cancel = new Button { Content = "Cancel", IsCancel = true, Padding = new Thickness(12, 3, 12, 3),
+                                  Margin = new Thickness(8, 0, 0, 0), MinWidth = 74 };
+        bool okClicked = false;
+        ok.Click += (_, __) => { okClicked = true; dlg.DialogResult = true; };
+        row.Children.Add(ok); row.Children.Add(cancel);
+        root.Children.Add(row);
+        dlg.Content = root;
+        return dlg.ShowDialog() == true && okClicked ? box.Text : null;
+    }
+
     TplElement MakeControl(TplKind kind, string title, string promptType, int w, int h)
     {
         var el = new TplElement
