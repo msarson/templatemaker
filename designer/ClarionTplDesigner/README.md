@@ -26,8 +26,9 @@ Then **Open .tpl…** and pick e.g. `..\..\templates\AJEBackupAPP.tpl`.
 - **Prompt-type awareness** — prompts that Clarion auto-builds with extra UI (a `PROCEDURE`/`FILE` dropdown,
   or a `…` lookup button for `KEYCODE`/`EXPR`/`OPENDIALOG`/font/colour pickers) render with a ▾/… affordance
   on the canvas, and the Properties panel describes the type and warns that these flow automatically — giving
-  them an explicit position can move or hide the auto-generated part. **"Add AT to all" now warns** before
-  pinning every control (it imposes the designer's *approximate* layout, which is risky for such prompts).
+  them an explicit position can move or hide the auto-generated part. **"Add AT to all" skips these prompts**
+  (and warns first), so the bulk action can't pin and misplace the auto-built dropdown/`…` — you can still
+  position one deliberately by dragging it.
 - **Add controls** — an *Add:* command bar inserts new controls into the current tab: **Label** (`#DISPLAY`),
   **String** (`#PROMPT @s255`), **Number** (`#PROMPT @n8`), **Spin**, **Check** (`#PROMPT CHECK`),
   **Image** (`#IMAGE`), and **Group box** (`#BOXED … #ENDBOXED`). New controls drop onto the canvas ready to

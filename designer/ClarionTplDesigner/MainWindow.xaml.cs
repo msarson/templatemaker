@@ -101,27 +101,33 @@ public partial class MainWindow : Window
 
         int special = AllElements().Count(el => el.Kind == TplKind.Prompt && !el.Deleted
                                                 && !(el.HasX && el.HasY) && ClassifyPrompt(el.PromptType).Special);
-        var msg = "“Add AT to all” gives every control an explicit AT(x,y,w,h) from the designer’s "
-                + "APPROXIMATE layout. Clarion normally auto-positions prompts, so this can shift controls and — "
-                + "for prompts that show a dropdown or “…” button — misplace the part Clarion builds automatically.\n\n"
-                + (special > 0 ? $"{special} prompt(s) here have such auto-built UI and are most at risk.\n\n" : "")
-                + "It’s usually safer to move only the few controls you need. Add AT to ALL controls anyway?";
-        if (MessageBox.Show(msg, "Add AT to all — affects every control",
+        var msg = "“Add AT to all” gives controls an explicit AT(x,y,w,h) from the designer’s APPROXIMATE "
+                + "layout, so they can all be dragged.\n\n"
+                + "Prompts that Clarion auto-builds with a dropdown or “…” button will be SKIPPED — pinning "
+                + "those tends to move or hide the auto-generated part. "
+                + (special > 0 ? $"{special} such prompt(s) will be left for Clarion to lay out.\n\n" : "\n")
+                + "Add AT to the remaining controls?";
+        if (MessageBox.Show(msg, "Add AT to all",
                 MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
         {
             status.Text = "“Add AT to all” cancelled.";
             return;
         }
 
-        int n = 0;
+        int n = 0, skipped = 0;
         foreach (var tab in _doc.Tabs)
         {
             Layout.Run(tab);
             foreach (var el in Positionable(tab))
+            {
+                if (el.Kind == TplKind.Prompt && ClassifyPrompt(el.PromptType).Special) { skipped++; continue; }
                 if (MaterializeAt(el)) n++;
+            }
         }
         Render();
-        status.Text = $"Gave explicit AT() to {n} control(s) across {_doc.Tabs.Count} tab(s). Drag to position, then Save.";
+        status.Text = $"Gave explicit AT() to {n} control(s)"
+                    + (skipped > 0 ? $"; left {skipped} auto-built prompt(s) for Clarion to position" : "")
+                    + ".  Drag to position, then Save.";
     }
 
     bool MaterializeAt(TplElement el)
