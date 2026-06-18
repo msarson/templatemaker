@@ -8,6 +8,8 @@
         <ToolBar DockPanel.Dock="Top">
             <Button Click="Open_Click" Padding="8,2">Open .tpl…</Button>
             <Button Click="Save_Click" Padding="8,2">Save</Button>
+            <Button Click="MaterializeAll_Click" Padding="8,2"
+                    ToolTip="Give every control an explicit AT(x,y,w,h) from the current layout, so they can all be dragged">Add AT to all</Button>
             <Separator/>
             <TextBlock VerticalAlignment="Center" Margin="4,0">Tab:</TextBlock>
             <ComboBox x:Name="cmbTabs" Width="140" SelectionChanged="Tab_Changed"/>

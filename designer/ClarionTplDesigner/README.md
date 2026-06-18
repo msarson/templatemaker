@@ -24,6 +24,11 @@ Then **Open .tpl…** and pick e.g. `..\..\templates\AJEBackupAPP.tpl`.
   `C:\clarion12\accessory\template\win` and `C:\clarion12\images`; missing files fall back to a 🖼 filename
   chip). Layout honours explicit `AT(x,y)`; everything else is stacked (approximate).
 - **Drag to move** a control — live `AT()` shown in the status bar and the Properties panel.
+- **Resize handles** — select a control and drag any of the 8 handles (corners + edge midpoints) to set
+  its width/height (and X/Y for top/left edges). Snaps to grid and guides just like moving.
+- **Add AT to all** — one button stamps every control with an explicit `AT(x,y,w,h)` taken from the current
+  layout, filling only the *missing* slots (existing coordinates are kept). Turns the approximate flow
+  layout into concrete, draggable coordinates across every tab so you can position anything.
 - **Z-order** — *Order: Front / ↑ / ↓ / Back* on the toolbar (or right-click a control) raises/lowers it so
   you can see and grab controls hidden underneath. This is a *view* aid in the designer; it does not reorder
   the generated source.

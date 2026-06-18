@@ -27,7 +27,7 @@ public partial class MainWindow : Window
     readonly Dictionary<string, BitmapImage?> _imgCache = new(StringComparer.OrdinalIgnoreCase);
     readonly List<Guide> _guides = new();
 
-    enum Drag { None, Element, Guide }
+    enum Drag { None, Element, Guide, Resize }
     Drag _drag = Drag.None;
     TplElement? _dragEl;
     Guide? _dragGuide;
@@ -35,6 +35,12 @@ public partial class MainWindow : Window
     double _elStartX, _elStartY;
     bool _suppressProp;
     bool _ready;          // true once XAML is fully constructed
+
+    [Flags] enum Edge { None = 0, Left = 1, Right = 2, Top = 4, Bottom = 8 }
+    Edge _resizeEdge;
+    double _rStartX, _rStartY, _rStartW, _rStartH;   // selection rect (DLU) at resize start
+    readonly List<Rectangle> _handles = new();
+    const double MinDlu = 4, HandlePx = 8;
 
     public MainWindow()
     {
@@ -66,6 +72,35 @@ public partial class MainWindow : Window
         catch (Exception ex) { MessageBox.Show("Save failed:\n" + ex.Message); }
     }
 
+    // Give every positionable control an explicit AT(x,y,w,h) from the current layout,
+    // filling only the missing slots so existing coordinates are kept. Makes everything draggable.
+    void MaterializeAll_Click(object s, RoutedEventArgs e)
+    {
+        if (_doc == null) { status.Text = "Open a template first."; return; }
+        int n = 0;
+        foreach (var tab in _doc.Tabs)
+        {
+            Layout.Run(tab);
+            foreach (var el in Positionable(tab))
+                if (MaterializeAt(el)) n++;
+        }
+        Render();
+        status.Text = $"Gave explicit AT() to {n} control(s) across {_doc.Tabs.Count} tab(s). Drag to position, then Save.";
+    }
+
+    bool MaterializeAt(TplElement el)
+    {
+        bool changed = !(el.HasX && el.HasY && el.HasW && el.HasH);
+        var (ox, oy) = FrameOrigin(el);
+        if (!el.HasX) el.X = (int)Math.Round(el.LX - ox);
+        if (!el.HasY) el.Y = (int)Math.Round(el.LY - oy);
+        if (!el.HasW) el.W = (int)Math.Round(el.LW);
+        if (!el.HasH) el.H = (int)Math.Round(el.LH);
+        el.HasX = el.HasY = el.HasW = el.HasH = true;
+        if (changed) el.Dirty = true;
+        return changed;
+    }
+
     // ---------- tab / render ----------
     void Tab_Changed(object s, SelectionChangedEventArgs e)
     {
@@ -82,6 +117,7 @@ public partial class MainWindow : Window
         if (!_ready) return;
         canvas.Children.Clear();
         _chips.Clear();
+        _handles.Clear();
         if (_tab == null) return;
 
         Layout.Run(_tab);
@@ -100,6 +136,7 @@ public partial class MainWindow : Window
 
         UpdateRulers();
         if (_sel != null && _chips.TryGetValue(_sel, out var b)) Highlight(b, true);
+        ShowHandles(_sel);
     }
 
     IEnumerable<TplElement> Positionable(TplElement c)
@@ -280,6 +317,7 @@ public partial class MainWindow : Window
         if (_sel != null && _chips.TryGetValue(_sel, out var old)) Highlight(old, false);
         _sel = el;
         if (el != null && _chips.TryGetValue(el, out var b)) Highlight(b, true);
+        ShowHandles(el);
         propGrid.IsEnabled = el != null;
         propTitle.Text = el?.Display ?? "(none)";
         propKind.Text = el == null ? "" : $"{el.Kind}   line {el.LineIndex + 1}";
@@ -324,6 +362,16 @@ public partial class MainWindow : Window
             nx = SnapX(nx); ny = SnapY(ny);
             MoveElement(_dragEl, nx, ny);
         }
+        else if (_drag == Drag.Resize && _sel != null)
+        {
+            double dx = (p.X - _dragStart.X) / Scale, dy = (p.Y - _dragStart.Y) / Scale;
+            double left = _rStartX, top = _rStartY, right = _rStartX + _rStartW, bottom = _rStartY + _rStartH;
+            if ((_resizeEdge & Edge.Left) != 0) left = Math.Min(Math.Max(0, SnapX(_rStartX + dx)), right - MinDlu);
+            if ((_resizeEdge & Edge.Right) != 0) right = Math.Max(SnapX(right + dx), left + MinDlu);
+            if ((_resizeEdge & Edge.Top) != 0) top = Math.Min(Math.Max(0, SnapY(_rStartY + dy)), bottom - MinDlu);
+            if ((_resizeEdge & Edge.Bottom) != 0) bottom = Math.Max(SnapY(bottom + dy), top + MinDlu);
+            ResizeElement(_sel, left, top, right - left, bottom - top);
+        }
         else if (_drag == Drag.Guide && _dragGuide != null)
         {
             double v = (_dragGuide.Vertical ? p.X : p.Y) / Scale;
@@ -354,6 +402,7 @@ public partial class MainWindow : Window
         {
             Canvas.SetLeft(b, lx * Scale); Canvas.SetTop(b, ly * Scale);
         }
+        if (el == _sel) PositionHandles(el);
         _suppressProp = true;
         txtX.Text = el.X.ToString(); txtY.Text = el.Y.ToString();
         _suppressProp = false;
@@ -366,6 +415,95 @@ public partial class MainWindow : Window
         while (p != null && p.Kind != TplKind.Boxed && p.Kind != TplKind.Tab) p = p.Parent;
         if (p == null || p.Kind == TplKind.Tab) return (0, 0);
         return (p.LX, p.LY);
+    }
+
+    // ---------- resize handles ----------
+    static readonly (Edge edge, double fx, double fy)[] HandleSpec =
+    {
+        (Edge.Top | Edge.Left, 0, 0),    (Edge.Top, .5, 0),    (Edge.Top | Edge.Right, 1, 0),
+        (Edge.Left, 0, .5),                                     (Edge.Right, 1, .5),
+        (Edge.Bottom | Edge.Left, 0, 1), (Edge.Bottom, .5, 1), (Edge.Bottom | Edge.Right, 1, 1),
+    };
+
+    void ClearHandles()
+    {
+        foreach (var r in _handles) canvas.Children.Remove(r);
+        _handles.Clear();
+    }
+
+    void ShowHandles(TplElement? el)
+    {
+        ClearHandles();
+        if (el == null || !_chips.ContainsKey(el)) return;
+        foreach (var (edge, fx, fy) in HandleSpec)
+        {
+            var r = new Rectangle
+            {
+                Width = HandlePx, Height = HandlePx,
+                Fill = Brushes.White,
+                Stroke = new SolidColorBrush(Color.FromRgb(220, 70, 60)),
+                StrokeThickness = 1,
+                Tag = edge,
+                Cursor = HandleCursor(edge)
+            };
+            Panel.SetZIndex(r, 2_000_000);    // above chips and guides, always grabbable
+            r.MouseLeftButtonDown += Handle_Down;
+            canvas.Children.Add(r);
+            _handles.Add(r);
+        }
+        PositionHandles(el);
+    }
+
+    void PositionHandles(TplElement el)
+    {
+        double x = el.LX * Scale, y = el.LY * Scale, w = el.LW * Scale, h = el.LH * Scale;
+        for (int i = 0; i < _handles.Count && i < HandleSpec.Length; i++)
+        {
+            var (_, fx, fy) = HandleSpec[i];
+            Canvas.SetLeft(_handles[i], x + w * fx - HandlePx / 2);
+            Canvas.SetTop(_handles[i], y + h * fy - HandlePx / 2);
+        }
+    }
+
+    static Cursor HandleCursor(Edge e) => e switch
+    {
+        (Edge.Top | Edge.Left) or (Edge.Bottom | Edge.Right) => Cursors.SizeNWSE,
+        (Edge.Top | Edge.Right) or (Edge.Bottom | Edge.Left) => Cursors.SizeNESW,
+        Edge.Left or Edge.Right => Cursors.SizeWE,
+        _ => Cursors.SizeNS
+    };
+
+    void Handle_Down(object s, MouseButtonEventArgs e)
+    {
+        if (_sel == null) return;
+        _resizeEdge = (Edge)((Rectangle)s).Tag;
+        _drag = Drag.Resize;
+        _dragStart = e.GetPosition(canvas);
+        _rStartX = _sel.LX; _rStartY = _sel.LY; _rStartW = _sel.LW; _rStartH = _sel.LH;
+        canvas.CaptureMouse();
+        e.Handled = true;
+    }
+
+    void ResizeElement(TplElement el, double lx, double ly, double lw, double lh)
+    {
+        lw = Math.Max(MinDlu, lw); lh = Math.Max(MinDlu, lh);
+        lx = Math.Max(0, lx); ly = Math.Max(0, ly);
+        el.LX = lx; el.LY = ly; el.LW = lw; el.LH = lh;
+        var (ox, oy) = FrameOrigin(el);
+        el.X = (int)Math.Round(lx - ox); el.Y = (int)Math.Round(ly - oy);
+        el.W = (int)Math.Round(lw); el.H = (int)Math.Round(lh);
+        el.HasX = el.HasY = el.HasW = el.HasH = el.Dirty = true;
+        if (_chips.TryGetValue(el, out var b))
+        {
+            Canvas.SetLeft(b, lx * Scale); Canvas.SetTop(b, ly * Scale);
+            b.Width = Math.Max(6, lw * Scale); b.Height = Math.Max(6, lh * Scale);
+        }
+        PositionHandles(el);
+        _suppressProp = true;
+        txtX.Text = el.X.ToString(); txtY.Text = el.Y.ToString();
+        txtW.Text = el.W.ToString(); txtH.Text = el.H.ToString();
+        _suppressProp = false;
+        status.Text = $"{el.Display}  →  AT({el.X},{el.Y},{el.W},{el.H})";
     }
 
     double SnapX(double dlu)
