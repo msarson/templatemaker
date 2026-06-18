@@ -20,6 +20,7 @@ public partial class MainWindow
     int _previewTabIndex;             // remembered across the rebuild that each selection triggers
     int _previewWidth = 480;          // prompt-window width: 480 (Clarion <=10) or 960 (Clarion 11/12)
     double PreviewFactor => _previewWidth / 480.0;
+    TplElement? _dragPreviewEl; Point _dragPreviewStart; bool _dragPreviewing;
 
     void PreviewWidth_Changed(object s, SelectionChangedEventArgs e)
     {
@@ -186,15 +187,73 @@ public partial class MainWindow
             ContextMenu = BuildPreviewMenu(el)
         };
         b.MouseLeftButtonDown += PreviewElement_Down;
+        b.MouseMove += PreviewDrag_Move;
+        b.MouseLeftButtonUp += PreviewDrag_Up;
         return b;
     }
 
     void PreviewElement_Down(object s, MouseButtonEventArgs e)
     {
-        if (((FrameworkElement)s).Tag is not TplElement el) return;
+        var b = (Border)s;
+        if (b.Tag is not TplElement el) return;
         if ((Keyboard.Modifiers & ModifierKeys.Control) != 0) ToggleSelect(el); else Select(el);
-        Render();                 // rebuild the preview so the selection outline shows
+        b.BorderBrush = _selection.Contains(el) ? new SolidColorBrush(Color.FromRgb(220, 70, 60)) : Brushes.Transparent;
+        _dragPreviewEl = el.IsContainer ? null : el;   // only leaf controls reorder by drag
+        _dragPreviewStart = e.GetPosition(canvas);
+        _dragPreviewing = false;
+        b.CaptureMouse();
         e.Handled = true;
+    }
+
+    void PreviewDrag_Move(object s, MouseEventArgs e)
+    {
+        if (_dragPreviewEl == null || e.LeftButton != MouseButtonState.Pressed || _dragPreviewing) return;
+        var p = e.GetPosition(canvas);
+        if (Math.Abs(p.X - _dragPreviewStart.X) > 4 || Math.Abs(p.Y - _dragPreviewStart.Y) > 4)
+        {
+            _dragPreviewing = true; ((Border)s).Opacity = 0.6;
+        }
+    }
+
+    void PreviewDrag_Up(object s, MouseButtonEventArgs e)
+    {
+        var b = (Border)s;
+        b.ReleaseMouseCapture(); b.Opacity = 1;
+        bool reordered = _dragPreviewing && _dragPreviewEl != null && ReorderTo(_dragPreviewEl, e.GetPosition(canvas));
+        _dragPreviewEl = null; _dragPreviewing = false;
+        Render();
+        if (reordered) status.Text = "Reordered control — Save to write the new line order.";
+    }
+
+    // Drop the dragged control next to whatever sibling is under the cursor (same parent only).
+    bool ReorderTo(TplElement el, Point ptCanvas)
+    {
+        if (canvas.InputHitTest(ptCanvas) is not DependencyObject hit) return false;
+        TplElement? target = null; Border? tb = null;
+        for (DependencyObject? d = hit; d != null; d = VisualTreeHelper.GetParent(d))
+            if (d is Border bb && bb.Tag is TplElement te) { target = te; tb = bb; break; }
+        if (target == null || target == el || el.Parent == null || target.Parent != el.Parent) return false;
+
+        bool before = true;
+        try { before = canvas.TransformToVisual(tb).Transform(ptCanvas).Y < tb!.ActualHeight / 2; } catch { }
+
+        PushUndo();
+        var parent = el.Parent;
+        parent.Children.Remove(el);
+        int idx = parent.Children.IndexOf(target);
+        if (idx < 0) idx = parent.Children.Count;
+        parent.Children.Insert(before ? idx : idx + 1, el);
+        if (!el.Inserted) el.Moved = true;
+
+        // anchor: emit before the next real sibling, else at the container end
+        int pos = parent.Children.IndexOf(el);
+        el.MoveAnchorLine = -1;
+        for (int i = pos + 1; i < parent.Children.Count; i++)
+        {
+            var sib = parent.Children[i];
+            if (!sib.Inserted && !sib.Deleted && sib.LineIndex >= 0) { el.MoveAnchorLine = sib.LineIndex; break; }
+        }
+        return true;
     }
 
     ContextMenu BuildPreviewMenu(TplElement el)

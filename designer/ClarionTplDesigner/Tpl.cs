@@ -17,7 +17,8 @@ public class TplElement
     public int EndLineIndex = -1;  // 0-based line of the matching #END... (containers); -1 = single line
     public bool Deleted;           // marked for removal -> its source line(s) are dropped on Save
     public bool Inserted;          // brand-new control with no source yet -> emitted on Save
-    public bool Moved;             // existing control reparented -> its source line relocates on Save
+    public bool Moved;             // existing control reparented/reordered -> its source line relocates on Save
+    public int MoveAnchorLine = -1; // emit it before this original source line (reorder); -1 = container end
     public string Title = "";      // tab name / box title / display text / prompt label / image file
     public string Symbol = "";     // %Symbol (prompts/images target a feq)
     public string PromptType = ""; // CHECK / @s255 / SPIN(..) / OPTION / RADIO / OPENDIALOG(..)
@@ -48,7 +49,7 @@ public class TplElement
         var c = new TplElement
         {
             Kind = Kind, LineIndex = LineIndex, EndLineIndex = EndLineIndex,
-            Deleted = Deleted, Inserted = Inserted, Moved = Moved,
+            Deleted = Deleted, Inserted = Inserted, Moved = Moved, MoveAnchorLine = MoveAnchorLine,
             Title = Title, Symbol = Symbol, PromptType = PromptType,
             HasAt = HasAt, HasX = HasX, HasY = HasY, HasW = HasW, HasH = HasH,
             X = X, Y = Y, W = W, H = H,
@@ -374,10 +375,12 @@ public static class TplWriter
                 bool stationary = (owner.Kind == TplKind.Tab || owner.Kind == TplKind.Boxed)
                                   && !owner.Inserted && !owner.Moved && !owner.Deleted && owner.EndLineIndex >= 0;
                 if (!stationary) continue;
-                int anchor = owner.EndLineIndex;
                 foreach (var child in owner.Children)
                     if (!child.Deleted && (child.Inserted || child.Moved))
+                    {
+                        int anchor = child.MoveAnchorLine >= 0 ? child.MoveAnchorLine : owner.EndLineIndex;
                         AddEmit(anchor, EmitUnit(child, lines));
+                    }
             }
 
         var kept = new List<string>(lines.Length + 16);
