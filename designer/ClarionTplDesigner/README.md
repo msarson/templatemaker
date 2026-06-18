@@ -75,7 +75,9 @@ Then **Open .tpl…** and pick e.g. `..\..\templates\AJEBackupAPP.tpl`.
 - **Snapping** — to the grid (configurable size) and to guides; toggle each independently.
 - **Source panel** — the *⌗ Source* toggle opens a resizable, syntax-coloured view of the current part's
   file (powered by **AvalonEdit**): directives, `%symbols`, `'strings'` and `!`/`#!` comments are coloured,
-  with line numbers. Selecting a control scrolls to and highlights its line. Read-only for now.
+  with line numbers. **Clicking a control jumps the source to that control's line** (caret + highlight). It's
+  **editable** — type changes and **Apply** writes them to the file and re-parses (refreshing the canvas);
+  **Revert** reloads from disk. (Applying re-reads the file, so save canvas edits first.)
 - **Undo** — **Ctrl+Z** (or the *↶ Undo* button) reverts the last change, step by step, all the way back:
   moves, resizes, reparents, adds, deletes, z-order, text/coord edits, and guide changes. History is kept
   per editing session and cleared when you open a file or after a structural save.

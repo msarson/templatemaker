@@ -49,6 +49,7 @@ public partial class MainWindow : Window
     bool _editGuard;                  // one undo entry per X/Y/W/H or text editing burst
     const int MaxUndo = 100;
     bool _srcOpen;                    // source panel visible
+    bool _srcDirty, _loadingSrc;      // editor has unapplied edits / suppress TextChanged while loading
     IHighlightingDefinition? _clarionHl;
 
     sealed class Snapshot
@@ -359,10 +360,42 @@ public partial class MainWindow : Window
         if (!_srcOpen) return;
         var f = CurrentFile();
         srcEditor.SyntaxHighlighting = ClarionHighlighting();
-        if (f == null) { srcEditor.Text = ""; srcHeader.Text = "SOURCE (read-only)"; return; }
-        try { srcEditor.Text = System.IO.File.ReadAllText(f.Path); }
-        catch { srcEditor.Text = string.Join(f.Newline, f.Lines); }
-        srcHeader.Text = $"SOURCE (read-only) — {System.IO.Path.GetFileName(f.Path)}";
+        _loadingSrc = true;
+        try
+        {
+            if (f == null) srcEditor.Text = "";
+            else { try { srcEditor.Text = System.IO.File.ReadAllText(f.Path); } catch { srcEditor.Text = string.Join(f.Newline, f.Lines); } }
+        }
+        finally { _loadingSrc = false; }
+        _srcDirty = false; btnApplySrc.IsEnabled = false;
+        srcHeader.Text = f == null ? "SOURCE" : $"SOURCE — {System.IO.Path.GetFileName(f.Path)}";
+    }
+
+    void SrcEditor_TextChanged(object? s, EventArgs e)
+    {
+        if (_loadingSrc) return;
+        _srcDirty = true; btnApplySrc.IsEnabled = true;
+        var f = CurrentFile();
+        srcHeader.Text = (f == null ? "SOURCE" : $"SOURCE — {System.IO.Path.GetFileName(f.Path)}") + "  •  edited (Apply to commit)";
+    }
+
+    void RevertSrc_Click(object s, RoutedEventArgs e) => LoadSource();
+
+    void ApplySrc_Click(object s, RoutedEventArgs e)
+    {
+        var f = CurrentFile();
+        if (f == null || !_srcDirty) return;
+        if (AllElements().Any(el => el.Dirty || el.Inserted || el.Deleted || el.Moved) &&
+            MessageBox.Show("Applying source edits re-reads the file and discards unsaved canvas changes. Continue?",
+                "Apply source edits", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+            return;
+        try
+        {
+            System.IO.File.WriteAllText(f.Path, srcEditor.Text);
+            ReloadFromDisk();          // re-parse the whole set (PopulateParts reloads the editor too)
+            status.Text = $"Applied source edits to {System.IO.Path.GetFileName(f.Path)}.";
+        }
+        catch (Exception ex) { MessageBox.Show("Apply failed:\n" + ex.Message); }
     }
 
     void ScrollSourceTo(TplElement? el)
@@ -371,8 +404,9 @@ public partial class MainWindow : Window
         int line = el.LineIndex + 1;
         if (line < 1 || line > srcEditor.Document.LineCount) return;
         var dl = srcEditor.Document.GetLineByNumber(line);
-        srcEditor.ScrollToLine(line);
+        srcEditor.CaretOffset = dl.Offset;
         srcEditor.Select(dl.Offset, dl.Length);
+        srcEditor.ScrollToLine(line);
     }
     static IEnumerable<TplElement> Flat(TplElement e)
     {
@@ -1306,6 +1340,7 @@ public partial class MainWindow : Window
 
     void OnKeyDown(object s, KeyEventArgs e)
     {
+        if (srcEditor.IsKeyboardFocusWithin) return;   // let the source editor handle its own keys
         if ((Keyboard.Modifiers & ModifierKeys.Control) != 0 && e.Key == Key.Z)
         {
             if (Keyboard.FocusedElement is TextBox) return;   // let the editor's own undo run
