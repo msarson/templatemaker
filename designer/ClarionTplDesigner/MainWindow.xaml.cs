@@ -249,20 +249,43 @@ public partial class MainWindow : Window
 
         PushUndo();
         var tab = new TplElement { Kind = TplKind.Tab, Inserted = true, Title = name };
-        // anchor: insert before #ENDSHEET, else just after the last well-formed tab's #ENDTAB
-        int anchor = _component.SheetEnd;
-        if (anchor < 0)
-        {
-            var ends = _component.Tabs.Where(t => !t.Inserted && !t.Deleted && t.EndLineIndex >= 0)
-                                      .Select(t => t.EndLineIndex);
-            anchor = ends.Any() ? ends.Max() + 1 : (CurrentFile()?.Lines.Length ?? 0);
-        }
-        tab.MoveAnchorLine = anchor;
+        tab.MoveAnchorLine = SheetInsertAnchor();   // insert before #ENDSHEET (after the existing tabs)
         _component.Tabs.Add(tab);
 
         cmbTabs.ItemsSource = _component.Tabs.Select(t => t.Title).ToList();
         cmbTabs.SelectedIndex = _component.Tabs.Count - 1;   // Tab_Changed sets _tab + renders
         status.Text = $"Added tab \"{name}\".  Add controls to it, then Save.";
+    }
+
+    // The line a new/last tab should be emitted before: #ENDSHEET, else just after the last tab's #ENDTAB.
+    int SheetInsertAnchor()
+    {
+        if (_component == null) return 0;
+        if (_component.SheetEnd >= 0) return _component.SheetEnd;
+        var ends = _component.Tabs.Where(t => !t.Inserted && !t.Deleted && t.EndLineIndex >= 0)
+                                  .Select(t => t.EndLineIndex);
+        return ends.Any() ? ends.Max() + 1 : (CurrentFile()?.Lines.Length ?? 0);
+    }
+
+    // Move a tab to a new position among its siblings (drag-reordered in the preview).
+    void ReorderTab(TplElement dragged, TplElement? insertBefore)
+    {
+        if (_component == null || insertBefore == dragged) return;
+        PushUndo();
+        var tabs = _component.Tabs;
+        tabs.Remove(dragged);
+        int idx = insertBefore != null ? tabs.IndexOf(insertBefore) : tabs.Count;
+        if (idx < 0) idx = tabs.Count;
+        tabs.Insert(idx, dragged);
+        if (!dragged.Inserted) dragged.Moved = true;
+        // anchor before the next stationary sibling tab, else before #ENDSHEET
+        dragged.MoveAnchorLine = SheetInsertAnchor();
+        for (int i = idx + 1; i < tabs.Count; i++)
+        {
+            var t = tabs[i];
+            if (!t.Inserted && !t.Deleted && t.LineIndex >= 0) { dragged.MoveAnchorLine = t.LineIndex; break; }
+        }
+        _previewTabIndex = idx;
     }
 
     // A small modal text prompt (we avoid raw input boxes; this keeps the look consistent).

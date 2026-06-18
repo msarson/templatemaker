@@ -21,6 +21,7 @@ public partial class MainWindow
     int _previewWidth = 480;          // prompt-window width: 480 (Clarion <=10) or 960 (Clarion 11/12)
     double PreviewFactor => _previewWidth / 480.0;
     TplElement? _dragPreviewEl; Point _dragPreviewStart; bool _dragPreviewing;
+    TplElement? _dragTab; Point _dragTabStart; bool _dragTabbing;
 
     void PreviewWidth_Changed(object s, SelectionChangedEventArgs e)
     {
@@ -93,7 +94,15 @@ public partial class MainWindow
         {
             var sp = new StackPanel { Margin = new Thickness(10) };
             BuildFlow(sp, tab.Children);
-            tabs.Items.Add(new TabItem { Header = tab.Title, Content = sp, Tag = tab });
+            var item = new TabItem { Header = tab.Title, Content = sp, Tag = tab };
+            if (_previewPending)        // interactive preview only: drag a tab header to reorder it
+            {
+                item.ToolTip = "Drag this tab onto another to reorder it";
+                item.MouseLeftButtonDown += Tab_HeaderDown;
+                item.MouseMove += Tab_HeaderMove;
+                item.MouseLeftButtonUp += Tab_HeaderUp;
+            }
+            tabs.Items.Add(item);
         }
         _previewLines = null;
         if (tabs.Items.Count == 0) { canvas.Width = canvas.Height = 10; return; }
@@ -223,6 +232,61 @@ public partial class MainWindow
         _dragPreviewEl = null; _dragPreviewing = false;
         Render();
         if (reordered) status.Text = "Reordered control — Save to write the new line order.";
+    }
+
+    // ---------- drag a TAB header to reorder the tabs ----------
+    // Down: remember the tab but don't handle the event, so the TabControl still switches to it.
+    // (Clicks on a control inside the tab are marked handled by PreviewElement_Down, so they don't reach here.)
+    void Tab_HeaderDown(object s, MouseButtonEventArgs e)
+    {
+        if (s is not TabItem ti || ti.Tag is not TplElement tab) return;
+        _dragTab = tab; _dragTabStart = e.GetPosition(canvas); _dragTabbing = false;
+    }
+
+    void Tab_HeaderMove(object s, MouseEventArgs e)
+    {
+        if (_dragTab == null || e.LeftButton != MouseButtonState.Pressed || _dragTabbing) return;
+        var p = e.GetPosition(canvas);
+        if (Math.Abs(p.X - _dragTabStart.X) > 6 || Math.Abs(p.Y - _dragTabStart.Y) > 6)
+        {
+            _dragTabbing = true;
+            if (s is TabItem ti) { ti.CaptureMouse(); ti.Opacity = 0.6; }
+        }
+    }
+
+    void Tab_HeaderUp(object s, MouseButtonEventArgs e)
+    {
+        if (s is TabItem ti) { ti.ReleaseMouseCapture(); ti.Opacity = 1; }
+        var dragged = _dragTab; bool was = _dragTabbing;
+        _dragTab = null; _dragTabbing = false;
+        if (!was || dragged == null || _component == null) return;
+
+        var hit = TabHit(e.GetPosition(canvas));
+        if (hit == null || hit.Value.tab == dragged) return;
+        var (target, after) = hit.Value;
+        var tabs = _component.Tabs;
+        TplElement? insertBefore;
+        if (!after) insertBefore = target;
+        else { int i = tabs.IndexOf(target); insertBefore = i + 1 < tabs.Count ? tabs[i + 1] : null; }
+        if (insertBefore == dragged) return;
+
+        ReorderTab(dragged, insertBefore);
+        Render();
+        status.Text = "Reordered tab — Save to write the new tab order.";
+    }
+
+    // The tab whose header is under a canvas point, and whether the point is past its midpoint.
+    (TplElement tab, bool after)? TabHit(Point ptCanvas)
+    {
+        if (canvas.InputHitTest(ptCanvas) is not DependencyObject hit) return null;
+        for (DependencyObject? d = hit; d != null; d = VisualTreeHelper.GetParent(d))
+            if (d is TabItem ti && ti.Tag is TplElement te)
+            {
+                bool after = false;
+                try { after = canvas.TransformToVisual(ti).Transform(ptCanvas).X > ti.ActualWidth / 2; } catch { }
+                return (te, after);
+            }
+        return null;
     }
 
     // Drop the dragged control wherever the cursor is: reorder among siblings, move into a #BOXED,

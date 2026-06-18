@@ -390,9 +390,10 @@ public static class TplWriter
                     }
             }
 
-        // Inserted top-level #TABs aren't children of a stationary owner — emit them before #ENDSHEET.
+        // Top-level #TABs aren't children of a stationary owner, so the loop above can't relocate them.
+        // Re-emit inserted tabs and reordered (moved) tabs at their anchor (a sibling tab's open line, or #ENDSHEET).
         foreach (var tab in docTabs)
-            if (tab.Kind == TplKind.Tab && tab.Inserted && !tab.Deleted && tab.MoveAnchorLine >= 0)
+            if (tab.Kind == TplKind.Tab && !tab.Deleted && (tab.Inserted || tab.Moved) && tab.MoveAnchorLine >= 0)
                 AddEmit(tab.MoveAnchorLine, EmitUnit(tab, lines));
 
         var kept = new List<string>(lines.Length + 16);
