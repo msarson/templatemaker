@@ -27,6 +27,9 @@ Then **Open .tpl…** and pick e.g. `..\..\templates\AJEBackupAPP.tpl`.
   real font/colour, and **`#IMAGE` controls as the actual PNG/ICO** (resolved next to the `.tpl`, then in
   `C:\clarion12\accessory\template\win` and `C:\clarion12\images`; missing files fall back to a 🖼 filename
   chip). Layout honours explicit `AT(x,y)`; everything else is stacked (approximate).
+- **Prompt simulation** — each prompt renders like its real row: the caption, a faux entry field, and (for
+  the auto-built types) a ▾ dropdown or `…` lookup button; `CHECK` shows a checkbox. So a tab reads close to
+  the actual Clarion prompt window.
 - **Prompt-type awareness** — prompts that Clarion auto-builds with extra UI (a `PROCEDURE`/`FILE` dropdown,
   or a `…` lookup button for `KEYCODE`/`EXPR`/`OPENDIALOG`/font/colour pickers) render with a ▾/… affordance
   on the canvas, and the Properties panel describes the type and warns that these flow automatically — giving

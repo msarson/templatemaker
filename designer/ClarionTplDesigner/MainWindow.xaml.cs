@@ -484,11 +484,59 @@ public partial class MainWindow : Window
                 SnapsToDevicePixels = true
             };
         }
+        else if (el.Kind == TplKind.Prompt)
+        {
+            border.Background = Brushes.Transparent;          // the row's own controls supply the look
+            var fg = el.FontColor is uint pc ? FromColorRef(pc) : Brushes.Black;
+            var (_, glyph, _) = ClassifyPrompt(el.PromptType);
+            string u = el.PromptType.Trim().ToUpperInvariant();
+
+            TextBlock Label() => new()
+            {
+                Text = el.Title.Length > 0 ? el.Title : el.Symbol,
+                Foreground = fg, FontSize = Math.Max(8, el.FontSize > 0 ? el.FontSize : 9),
+                FontWeight = el.Bold ? FontWeights.Bold : FontWeights.Normal,
+                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(3, 0, 4, 0),
+                TextTrimming = TextTrimming.CharacterEllipsis
+            };
+
+            if (u == "CHECK")
+            {
+                var dock = new DockPanel { LastChildFill = true };
+                var tick = new Border
+                {
+                    Width = 11, Height = 11, Background = Brushes.White,
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(0xB8, 0xC0, 0xCC)),
+                    BorderThickness = new Thickness(1), Margin = new Thickness(3, 0, 4, 0),
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                DockPanel.SetDock(tick, Dock.Left);
+                dock.Children.Add(tick); dock.Children.Add(Label());
+                border.Child = dock;
+            }
+            else if (u.StartsWith("OPTION") || u.StartsWith("RADIO"))
+            {
+                border.Child = Label();
+            }
+            else                                              // entry / dropdown / picker
+            {
+                var dock = new DockPanel { LastChildFill = true };
+                var lab = Label(); DockPanel.SetDock(lab, Dock.Left); dock.Children.Add(lab);
+                if (glyph.Length > 0) { var b2 = FauxButton(glyph); DockPanel.SetDock(b2, Dock.Right); dock.Children.Add(b2); }
+                dock.Children.Add(new Border        // faux entry field, fills the remaining width
+                {
+                    Background = new SolidColorBrush(Color.FromRgb(0xFB, 0xFC, 0xFE)),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(0xC8, 0xD0, 0xDC)),
+                    BorderThickness = new Thickness(1), Margin = new Thickness(0, 1, 1, 1), MinWidth = 20
+                });
+                border.Child = dock;
+            }
+        }
         else if (!box)
         {
             var fg = el.FontColor is uint c ? FromColorRef(c) : Brushes.Black;
             string txt = el.Kind == TplKind.Image ? "🖼 " + el.Display : el.Display;   // missing image -> show filename
-            var label = new TextBlock
+            border.Child = new TextBlock
             {
                 Text = txt,
                 Foreground = el.Kind == TplKind.Image && el.FontColor is null
@@ -499,33 +547,6 @@ public partial class MainWindow : Window
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 VerticalAlignment = VerticalAlignment.Center
             };
-
-            string glyph = el.Kind == TplKind.Prompt ? ClassifyPrompt(el.PromptType).Glyph : "";
-            if (glyph.Length > 0)
-            {
-                // simulate the auto-generated companion control (dropdown ▾ / lookup … button)
-                var dock = new DockPanel { LastChildFill = true };
-                var btn = new Border
-                {
-                    Background = new SolidColorBrush(Color.FromRgb(0xEC, 0xEF, 0xF3)),
-                    BorderBrush = new SolidColorBrush(Color.FromRgb(0xB8, 0xC0, 0xCC)),
-                    BorderThickness = new Thickness(1),
-                    Margin = new Thickness(2, 1, 1, 1),
-                    Child = new TextBlock
-                    {
-                        Text = glyph, FontSize = 9,
-                        Foreground = new SolidColorBrush(Color.FromRgb(0x5B, 0x68, 0x78)),
-                        HorizontalAlignment = HorizontalAlignment.Center,
-                        VerticalAlignment = VerticalAlignment.Center,
-                        Margin = new Thickness(3, 0, 3, 0)
-                    }
-                };
-                DockPanel.SetDock(btn, Dock.Right);
-                dock.Children.Add(btn);
-                dock.Children.Add(label);
-                border.Child = dock;
-            }
-            else border.Child = label;
         }
         else
         {
@@ -689,6 +710,21 @@ public partial class MainWindow : Window
     void Forward_Click(object s, RoutedEventArgs e) { if (_sel != null) ZForward(_sel); }
     void Backward_Click(object s, RoutedEventArgs e) { if (_sel != null) ZBackward(_sel); }
     void Back_Click(object s, RoutedEventArgs e) { if (_sel != null) ZBack(_sel); }
+
+    // A small bordered button simulating Clarion's auto-built dropdown (▾) / lookup (…) control.
+    static Border FauxButton(string glyph) => new()
+    {
+        Background = new SolidColorBrush(Color.FromRgb(0xEC, 0xEF, 0xF3)),
+        BorderBrush = new SolidColorBrush(Color.FromRgb(0xB8, 0xC0, 0xCC)),
+        BorderThickness = new Thickness(1), Margin = new Thickness(2, 1, 1, 1),
+        Child = new TextBlock
+        {
+            Text = glyph, FontSize = 9,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x5B, 0x68, 0x78)),
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(3, 0, 3, 0)
+        }
+    };
 
     // ---------- selection / properties ----------
     void Chip_Down(object s, MouseButtonEventArgs e)
