@@ -251,12 +251,14 @@ public partial class MainWindow
 
     static void ApplyFont(TextBlock t, TplElement el)
     {
+        if (!string.IsNullOrWhiteSpace(el.FontName)) t.FontFamily = new FontFamily(el.FontName);
         if (el.FontSize > 0) t.FontSize = Math.Max(8, el.FontSize);
         t.FontWeight = el.Bold ? FontWeights.Bold : FontWeights.Normal;
         if (el.FontColor is uint c) t.Foreground = FromColorRef(c);
     }
     static void ApplyFont(Control c, TplElement el)
     {
+        if (!string.IsNullOrWhiteSpace(el.FontName)) c.FontFamily = new FontFamily(el.FontName);
         if (el.FontSize > 0) c.FontSize = Math.Max(8, el.FontSize);
         c.FontWeight = el.Bold ? FontWeights.Bold : FontWeights.Normal;
         if (el.FontColor is uint col) c.Foreground = FromColorRef(col);

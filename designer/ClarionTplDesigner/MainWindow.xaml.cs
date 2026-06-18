@@ -864,14 +864,19 @@ public partial class MainWindow : Window
             var (_, glyph, _) = ClassifyPrompt(el.PromptType);
             string u = el.PromptType.Trim().ToUpperInvariant();
 
-            TextBlock Label() => new()
+            TextBlock Label()
             {
-                Text = el.Title.Length > 0 ? el.Title : el.Symbol,
-                Foreground = fg, FontSize = Math.Max(8, el.FontSize > 0 ? el.FontSize : 9),
-                FontWeight = el.Bold ? FontWeights.Bold : FontWeights.Normal,
-                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(3, 0, 4, 0),
-                TextTrimming = TextTrimming.CharacterEllipsis
-            };
+                var t = new TextBlock
+                {
+                    Text = el.Title.Length > 0 ? el.Title : el.Symbol,
+                    Foreground = fg, FontSize = Math.Max(8, el.FontSize > 0 ? el.FontSize : 9),
+                    FontWeight = el.Bold ? FontWeights.Bold : FontWeights.Normal,
+                    VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(3, 0, 4, 0),
+                    TextTrimming = TextTrimming.CharacterEllipsis
+                };
+                if (!string.IsNullOrWhiteSpace(el.FontName)) t.FontFamily = new FontFamily(el.FontName);
+                return t;
+            }
 
             if (u == "CHECK")
             {
@@ -917,7 +922,7 @@ public partial class MainWindow : Window
         {
             var fg = el.FontColor is uint c ? FromColorRef(c) : Brushes.Black;
             string txt = el.Kind == TplKind.Image ? "🖼 " + el.Display : el.Display;   // missing image -> show filename
-            border.Child = new TextBlock
+            var t = new TextBlock
             {
                 Text = txt,
                 Foreground = el.Kind == TplKind.Image && el.FontColor is null
@@ -928,6 +933,8 @@ public partial class MainWindow : Window
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 VerticalAlignment = VerticalAlignment.Center
             };
+            if (!string.IsNullOrWhiteSpace(el.FontName)) t.FontFamily = new FontFamily(el.FontName);
+            border.Child = t;
         }
         else
         {
