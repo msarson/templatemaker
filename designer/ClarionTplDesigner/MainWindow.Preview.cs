@@ -198,7 +198,7 @@ public partial class MainWindow
         if (b.Tag is not TplElement el) return;
         if ((Keyboard.Modifiers & ModifierKeys.Control) != 0) ToggleSelect(el); else Select(el);
         b.BorderBrush = _selection.Contains(el) ? new SolidColorBrush(Color.FromRgb(220, 70, 60)) : Brushes.Transparent;
-        _dragPreviewEl = el.IsContainer ? null : el;   // only leaf controls reorder by drag
+        _dragPreviewEl = el.IsPositionable ? el : null;   // leaves and group boxes can reorder by drag
         _dragPreviewStart = e.GetPosition(canvas);
         _dragPreviewing = false;
         b.CaptureMouse();

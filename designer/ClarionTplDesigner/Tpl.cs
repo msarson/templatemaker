@@ -350,14 +350,18 @@ public static class TplWriter
                     for (int i = e.LineIndex; i <= end && i < lines.Length; i++) drop.Add(i);
                 }
                 else if (e.Moved && !e.Inserted && e.LineIndex >= 0)
-                    drop.Add(e.LineIndex);
+                {
+                    int mend = e.EndLineIndex > e.LineIndex ? e.EndLineIndex : e.LineIndex;   // box = whole block
+                    for (int i = e.LineIndex; i <= mend && i < lines.Length; i++) drop.Add(i);
+                }
             }
 
         // In-place AT / PROP rewrite for controls that stayed put (not added/relocated/deleted).
         foreach (var tab in docTabs)
             foreach (var e in Flatten(tab))
-                if ((e.Dirty || e.FontDirty) && !e.Deleted && !e.Inserted && !e.Moved && e.LineIndex >= 0 && !drop.Contains(e.LineIndex))
+                if ((e.Dirty || e.FontDirty) && !e.Deleted && !e.Inserted && !e.Moved && e.LineIndex >= 0)
                 {
+                    // edit the clone in place; a control inside a moved box is re-emitted from these lines
                     if (e.Dirty) lines[e.LineIndex] = ApplyAt(lines[e.LineIndex], e);
                     if (e.FontDirty) lines[e.LineIndex] = ApplyProps(lines[e.LineIndex], e);
                 }
@@ -411,9 +415,22 @@ public static class TplWriter
         {
             yield return ApplyProps(GenLine(e), e);  // freshly generated leaf (+ any font set in the panel)
         }
+        else if (e.EndLineIndex > e.LineIndex && e.EndLineIndex < lines.Length)
+        {
+            for (int i = e.LineIndex; i <= e.EndLineIndex; i++)   // existing box: move the whole block verbatim
+            {
+                string ln = lines[i];
+                if (i == e.LineIndex)                              // only the open line carries this box's AT/PROPs
+                {
+                    if (e.Dirty) ln = ApplyAt(ln, e);
+                    if (e.FontDirty) ln = ApplyProps(ln, e);
+                }
+                yield return ln;
+            }
+        }
         else if (e.LineIndex >= 0 && e.LineIndex < lines.Length)
         {
-            var ln = lines[e.LineIndex];             // existing control, kept verbatim except edited AT/PROPs
+            var ln = lines[e.LineIndex];             // existing leaf, kept verbatim except edited AT/PROPs
             if (e.Dirty) ln = ApplyAt(ln, e);
             if (e.FontDirty) ln = ApplyProps(ln, e);
             yield return ln;
