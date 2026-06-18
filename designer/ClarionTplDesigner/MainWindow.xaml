@@ -25,6 +25,12 @@
             <Button Click="AddVGuide_Click" Padding="6,2">+ V guide</Button>
             <Button Click="AddHGuide_Click" Padding="6,2">+ H guide</Button>
             <Button Click="ClearGuides_Click" Padding="6,2">Clear guides</Button>
+            <Separator/>
+            <TextBlock VerticalAlignment="Center" Margin="4,0">Order:</TextBlock>
+            <Button Click="Front_Click"    Padding="6,2" ToolTip="Bring selected control to front">⤒ Front</Button>
+            <Button Click="Forward_Click"  Padding="6,2" ToolTip="Bring forward one step">↑</Button>
+            <Button Click="Backward_Click" Padding="6,2" ToolTip="Send backward one step">↓</Button>
+            <Button Click="Back_Click"     Padding="6,2" ToolTip="Send selected control to back">⤓ Back</Button>
         </ToolBar>
 
         <StatusBar DockPanel.Dock="Bottom">

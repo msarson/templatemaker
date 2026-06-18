@@ -19,9 +19,14 @@ Then **Open .tpl…** and pick e.g. `..\..\templates\AJEBackupAPP.tpl`.
 
 - **Parses** `#SHEET/#TAB/#BOXED/#BUTTON/#ENABLE/#PROMPT/#DISPLAY/#IMAGE`, including each element's
   `AT()` and `PROP(PROP:Font/FontColor/FontSize/FontStyle)`.
-- **Renders** the selected tab on a canvas: boxes as group frames, prompts/displays/images as chips with
-  their real font/colour. Layout honours explicit `AT(x,y)`; everything else is stacked (approximate).
+- **Renders** the selected tab on a canvas: boxes as group frames, prompts/displays as chips with their
+  real font/colour, and **`#IMAGE` controls as the actual PNG/ICO** (resolved next to the `.tpl`, then in
+  `C:\clarion12\accessory\template\win` and `C:\clarion12\images`; missing files fall back to a 🖼 filename
+  chip). Layout honours explicit `AT(x,y)`; everything else is stacked (approximate).
 - **Drag to move** a control — live `AT()` shown in the status bar and the Properties panel.
+- **Z-order** — *Order: Front / ↑ / ↓ / Back* on the toolbar (or right-click a control) raises/lowers it so
+  you can see and grab controls hidden underneath. This is a *view* aid in the designer; it does not reorder
+  the generated source.
 - **Rulers** (top + left) in dialog units, with a live cursor marker.
 - **Guides** — drag from a ruler (top ruler → vertical guide, left ruler → horizontal guide), or use the
   *+ V/H guide* buttons. Drag a guide to reposition; double‑click to delete.

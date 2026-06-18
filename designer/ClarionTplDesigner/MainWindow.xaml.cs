@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using Microsoft.Win32;
 
@@ -22,6 +23,8 @@ public partial class MainWindow : Window
     const double SnapPx = 6;                 // snap threshold in pixels
 
     readonly Dictionary<TplElement, Border> _chips = new();
+    readonly Dictionary<TplElement, int> _z = new();        // per-element z-order overrides
+    readonly Dictionary<string, BitmapImage?> _imgCache = new(StringComparer.OrdinalIgnoreCase);
     readonly List<Guide> _guides = new();
 
     enum Drag { None, Element, Guide }
@@ -130,13 +133,28 @@ public partial class MainWindow : Window
             Tag = el,
             Cursor = Cursors.SizeAll
         };
-        if (!box)
+        BitmapImage? bmp = el.Kind == TplKind.Image ? ResolveImage(el.Title) : null;
+        if (bmp != null)
+        {
+            border.Background = Brushes.Transparent;
+            border.BorderBrush = new SolidColorBrush(Color.FromRgb(175, 185, 200));
+            if (!el.HasW) border.Width = bmp.PixelWidth;     // no explicit size -> native pixels
+            if (!el.HasH) border.Height = bmp.PixelHeight;
+            border.Child = new Image
+            {
+                Source = bmp, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.Both,
+                SnapsToDevicePixels = true
+            };
+        }
+        else if (!box)
         {
             var fg = el.FontColor is uint c ? FromColorRef(c) : Brushes.Black;
+            string txt = el.Kind == TplKind.Image ? "🖼 " + el.Display : el.Display;   // missing image -> show filename
             border.Child = new TextBlock
             {
-                Text = el.Display,
-                Foreground = fg,
+                Text = txt,
+                Foreground = el.Kind == TplKind.Image && el.FontColor is null
+                             ? new SolidColorBrush(Color.FromRgb(150, 110, 60)) : fg,
                 FontWeight = el.Bold ? FontWeights.Bold : FontWeights.Normal,
                 FontSize = Math.Max(8, (el.FontSize > 0 ? el.FontSize : 9)),
                 Margin = new Thickness(2, 0, 2, 0),
@@ -154,11 +172,95 @@ public partial class MainWindow : Window
         }
         Canvas.SetLeft(border, el.LX * Scale);
         Canvas.SetTop(border, el.LY * Scale);
-        Panel.SetZIndex(border, box ? 0 : 5);
+        Panel.SetZIndex(border, _z.TryGetValue(el, out var zo) ? zo : (box ? 0 : 5));
+        border.ContextMenu = BuildChipMenu(el);
         border.MouseLeftButtonDown += Chip_Down;
         canvas.Children.Add(border);
         _chips[el] = border;
     }
+
+    // ---------- images ----------
+    BitmapImage? ResolveImage(string file)
+    {
+        if (string.IsNullOrWhiteSpace(file)) return null;
+        if (_imgCache.TryGetValue(file, out var cached)) return cached;
+
+        string? path = FindImage(file);
+        BitmapImage? bmp = null;
+        if (path != null)
+        {
+            try
+            {
+                bmp = new BitmapImage();
+                bmp.BeginInit();
+                bmp.CacheOption = BitmapCacheOption.OnLoad;   // don't lock the file
+                bmp.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+                bmp.UriSource = new Uri(path);
+                bmp.EndInit();
+                bmp.Freeze();
+            }
+            catch { bmp = null; }
+        }
+        _imgCache[file] = bmp;
+        return bmp;
+    }
+
+    string? FindImage(string file)
+    {
+        if (System.IO.Path.IsPathRooted(file) && System.IO.File.Exists(file)) return file;
+        foreach (var dir in ImageSearchDirs())
+        {
+            var p = System.IO.Path.Combine(dir, file);
+            if (System.IO.File.Exists(p)) return p;
+        }
+        return null;
+    }
+
+    IEnumerable<string> ImageSearchDirs()
+    {
+        if (_doc != null) yield return System.IO.Path.GetDirectoryName(_doc.Path) ?? ".";
+        yield return @"C:\clarion12\accessory\template\win";
+        yield return @"C:\clarion12\images";
+    }
+
+    // ---------- z-order ----------
+    ContextMenu BuildChipMenu(TplElement el)
+    {
+        var cm = new ContextMenu();
+        cm.Items.Add(ZItem("Bring to Front", () => ZFront(el)));
+        cm.Items.Add(ZItem("Bring Forward", () => ZForward(el)));
+        cm.Items.Add(ZItem("Send Backward", () => ZBackward(el)));
+        cm.Items.Add(ZItem("Send to Back", () => ZBack(el)));
+        return cm;
+    }
+
+    static MenuItem ZItem(string header, Action act)
+    {
+        var mi = new MenuItem { Header = header };
+        mi.Click += (_, _) => act();
+        return mi;
+    }
+
+    int MaxZ() => _chips.Count == 0 ? 5 : _chips.Values.Select(Panel.GetZIndex).Max();
+    int MinZ() => _chips.Count == 0 ? 0 : _chips.Values.Select(Panel.GetZIndex).Min();
+    int CurZ(TplElement el) => _chips.TryGetValue(el, out var b) ? Panel.GetZIndex(b) : 0;
+
+    void SetZ(TplElement el, int z)
+    {
+        _z[el] = z;
+        if (_chips.TryGetValue(el, out var b)) Panel.SetZIndex(b, z);
+        Select(el);
+        status.Text = $"{el.Display}  →  z-order {z}";
+    }
+    void ZFront(TplElement el) => SetZ(el, MaxZ() + 1);
+    void ZBack(TplElement el) => SetZ(el, MinZ() - 1);
+    void ZForward(TplElement el) => SetZ(el, CurZ(el) + 1);
+    void ZBackward(TplElement el) => SetZ(el, CurZ(el) - 1);
+
+    void Front_Click(object s, RoutedEventArgs e) { if (_sel != null) ZFront(_sel); }
+    void Forward_Click(object s, RoutedEventArgs e) { if (_sel != null) ZForward(_sel); }
+    void Backward_Click(object s, RoutedEventArgs e) { if (_sel != null) ZBackward(_sel); }
+    void Back_Click(object s, RoutedEventArgs e) { if (_sel != null) ZBack(_sel); }
 
     // ---------- selection / properties ----------
     void Chip_Down(object s, MouseButtonEventArgs e)
@@ -315,7 +417,7 @@ public partial class MainWindow : Window
             StrokeDashArray = new DoubleCollection { 4, 3 },
             Tag = g, Cursor = g.Vertical ? Cursors.SizeWE : Cursors.SizeNS
         };
-        Panel.SetZIndex(line, 50);
+        Panel.SetZIndex(line, 1_000_000);   // guides stay above any raised chip
         line.MouseLeftButtonDown += Guide_Down;
         g.Visual = line;
         canvas.Children.Add(line);
