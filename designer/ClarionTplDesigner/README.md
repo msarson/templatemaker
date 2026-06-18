@@ -82,9 +82,12 @@ Then **Open .tpl…** and pick e.g. `..\..\templates\AJEBackupAPP.tpl`.
   header to dock it on any edge of the designer, drop it onto another panel to tab them, or tear it off into a
   **floating window**; resize with the splitters. *View ▸ Source panel* shows/hides the Source panel. The
   layout is **remembered between sessions** (saved on close); *View ▸ Reset panel layout* restores the default.
-- **Menus** — a **File / Edit / Insert / Arrange / Style / Guides / View** menu bar holds the one‑click actions
-  (open/save, undo, add‑AT, insert controls, z‑order, font/colour, guides, source/layout); the slim toolbar
-  keeps the live controls (Part, Tab, Zoom, snap grid/guides).
+- **Menus** — a **File / Edit / Insert / Arrange / Style / Guides / Preferences / View** menu bar holds the
+  one‑click actions; the slim toolbar keeps the live controls (Part, Tab, Zoom, grid size). **Preferences** has
+  checkable toggles: **Show grid** (draws the snap grid on the canvas), **Snap to grid**, **Snap to guides**,
+  and **Show minimap**.
+- **Minimap** — a code‑overview strip beside the source (each line a coloured bar — comments/directives/symbols
+  — with a viewport box); click or drag it to jump the editor. Toggle via *Preferences ▸ Show minimap*.
 - **Click vs. drag** — clicking a control only *selects* it; it moves only once you actually drag past a few
   pixels (so snap‑to‑grid no longer nudges a control on a plain click).
 - **Multi‑select** — **Ctrl+click** toggles, **Shift+click** adds, or **drag a marquee** on empty canvas to

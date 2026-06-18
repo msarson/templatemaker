@@ -46,6 +46,13 @@
             <MenuItem Header="Add _Horizontal guide" Click="AddHGuide_Click"/>
             <MenuItem Header="_Clear guides" Click="ClearGuides_Click"/>
         </MenuItem>
+        <MenuItem Header="_Preferences">
+            <MenuItem x:Name="miShowGrid"  Header="Show _grid"      IsCheckable="True" Click="ShowGrid_Changed"/>
+            <MenuItem x:Name="miSnapGrid"  Header="Snap to gri_d"   IsCheckable="True" IsChecked="True"/>
+            <MenuItem x:Name="miSnapGuide" Header="Snap to g_uides" IsCheckable="True" IsChecked="True"/>
+            <Separator/>
+            <MenuItem x:Name="miMinimap"   Header="Show _minimap"   IsCheckable="True" Click="Minimap_Toggle"/>
+        </MenuItem>
         <MenuItem Header="_View">
             <MenuItem x:Name="miViewSource" Header="_Source panel" IsCheckable="True" Click="Source_Click"/>
             <Separator/>
@@ -64,10 +71,9 @@
                     TickFrequency="0.5" IsSnapToTickEnabled="True"
                     ValueChanged="Zoom_Changed" VerticalAlignment="Center"/>
             <Separator/>
-            <CheckBox x:Name="chkSnapGrid" IsChecked="True" VerticalAlignment="Center" Margin="2,0">Snap grid</CheckBox>
-            <TextBlock VerticalAlignment="Center" Margin="6,0,2,0">size</TextBlock>
-            <TextBox x:Name="txtGrid" Width="32" Text="5" VerticalAlignment="Center"/>
-            <CheckBox x:Name="chkSnapGuide" IsChecked="True" VerticalAlignment="Center" Margin="8,0">Snap guides</CheckBox>
+            <TextBlock VerticalAlignment="Center" Margin="4,0,2,0">Grid size</TextBlock>
+            <TextBox x:Name="txtGrid" Width="32" Text="5" VerticalAlignment="Center"
+                     TextChanged="GridSize_Changed"/>
       </ToolBar>
 
         <StatusBar DockPanel.Dock="Bottom">
@@ -115,9 +121,17 @@
                             <TextBlock x:Name="srcHeader" VerticalAlignment="Center" Margin="10,0,0,0"
                                        FontSize="11" Foreground="#8A95A3" Text=""/>
                         </StackPanel>
-                        <avalon:TextEditor x:Name="srcEditor" FontFamily="Consolas" FontSize="12.5"
-                                           ShowLineNumbers="True" WordWrap="False" TextChanged="SrcEditor_TextChanged"
-                                           HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition x:Name="mapCol" Width="0"/>
+                            </Grid.ColumnDefinitions>
+                            <avalon:TextEditor x:Name="srcEditor" Grid.Column="0" FontFamily="Consolas" FontSize="12.5"
+                                               ShowLineNumbers="True" WordWrap="False" TextChanged="SrcEditor_TextChanged"
+                                               HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"/>
+                            <local:MinimapControl x:Name="srcMap" Grid.Column="1" Width="92" Cursor="Hand"
+                                                  Visibility="Collapsed"/>
+                        </Grid>
                     </DockPanel>
                   </avalonDock:LayoutAnchorable>
                 </avalonDock:LayoutAnchorablePane>

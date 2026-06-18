@@ -85,6 +85,8 @@ public partial class MainWindow : Window
         WireSource(anchSource);
         _srcOpen = anchSource.IsVisible;
         miViewSource.IsChecked = _srcOpen;
+        srcMap.GoToLine += ln => srcEditor.ScrollToLine(Math.Min(srcEditor.Document?.LineCount ?? 1, ln + 1));
+        srcEditor.TextArea.TextView.ScrollOffsetChanged += (_, _) => UpdateMinimapViewport();
         _ready = true;
 
         // remember panel contents + the pristine layout, then restore the user's saved layout
@@ -479,10 +481,12 @@ public partial class MainWindow : Window
         finally { _loadingSrc = false; }
         _srcDirty = false; btnApplySrc.IsEnabled = false;
         srcHeader.Text = f == null ? "SOURCE" : $"SOURCE — {System.IO.Path.GetFileName(f.Path)}";
+        RefreshMinimap();
     }
 
     void SrcEditor_TextChanged(object? s, EventArgs e)
     {
+        RefreshMinimap();
         if (_loadingSrc) return;
         _srcDirty = true; btnApplySrc.IsEnabled = true;
         var f = CurrentFile();
@@ -570,6 +574,7 @@ public partial class MainWindow : Window
         canvas.Width = (maxX + 40) * Scale;
         canvas.Height = (maxY + 60) * Scale;
 
+        DrawGrid();
         foreach (var g in _guides) AddGuideVisual(g);
 
         UpdateRulers();
@@ -584,6 +589,55 @@ public partial class MainWindow : Window
             if (ch.IsPositionable) yield return ch;
             foreach (var x in Positionable(ch)) yield return x;
         }
+    }
+
+    // ---------- preferences (grid / minimap) ----------
+    void DrawGrid()
+    {
+        if (miShowGrid.IsChecked != true) return;
+        double step = GridStep * Scale;
+        if (step < 5) return;                       // too dense to be useful
+        var brush = new SolidColorBrush(Color.FromRgb(0xE4, 0xE9, 0xF0)); brush.Freeze();
+        for (double x = step; x < canvas.Width; x += step)
+            AddGridLine(x, 0, x, canvas.Height, brush);
+        for (double y = step; y < canvas.Height; y += step)
+            AddGridLine(0, y, canvas.Width, y, brush);
+    }
+
+    void AddGridLine(double x1, double y1, double x2, double y2, Brush brush)
+    {
+        var l = new Line { X1 = x1, Y1 = y1, X2 = x2, Y2 = y2, Stroke = brush, StrokeThickness = 0.5, IsHitTestVisible = false };
+        Panel.SetZIndex(l, -1);                     // behind the controls
+        canvas.Children.Add(l);
+    }
+
+    void ShowGrid_Changed(object s, RoutedEventArgs e) => Render();
+    void GridSize_Changed(object s, TextChangedEventArgs e) { if (_ready) { UpdateRulers(); Render(); } }
+
+    void Minimap_Toggle(object s, RoutedEventArgs e)
+    {
+        bool on = miMinimap.IsChecked == true;
+        srcMap.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        mapCol.Width = on ? new GridLength(92) : new GridLength(0);
+        if (on) RefreshMinimap();
+    }
+
+    void RefreshMinimap()
+    {
+        if (miMinimap.IsChecked != true) return;
+        srcMap.Lines = srcEditor.Text.Split('\n');
+        UpdateMinimapViewport();
+    }
+
+    void UpdateMinimapViewport()
+    {
+        if (miMinimap.IsChecked != true) return;
+        var tv = srcEditor.TextArea.TextView;
+        double lh = tv.DefaultLineHeight > 0 ? tv.DefaultLineHeight : srcEditor.FontSize * 1.3;
+        if (lh <= 0) return;
+        srcMap.FirstVisible = (int)(srcEditor.VerticalOffset / lh);
+        srcMap.VisibleCount = (int)(srcEditor.ViewportHeight / lh) + 1;
+        srcMap.InvalidateVisual();
     }
 
     void DeleteSelection()
@@ -1333,7 +1387,7 @@ public partial class MainWindow : Window
             bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
             int seg = _dragGuide.Vertical ? hRuler.Step : vRuler.Step;   // labelled ruler segment
             if (ctrl) v = Math.Round(v / seg) * seg;                     // Ctrl: snap to ruler segments
-            else if (chkSnapGrid.IsChecked == true) v = Math.Round(v / GridStep) * GridStep;
+            else if (miSnapGrid.IsChecked == true) v = Math.Round(v / GridStep) * GridStep;
             _dragGuide.Dlu = Math.Max(0, Math.Round(v));
             PositionGuide(_dragGuide);
 
@@ -1594,18 +1648,18 @@ public partial class MainWindow : Window
 
     double SnapX(double dlu)
     {
-        if (chkSnapGuide.IsChecked == true)
+        if (miSnapGuide.IsChecked == true)
             foreach (var g in _guides.Where(g => g.Vertical))
                 if (Math.Abs(g.Dlu - dlu) * Scale <= SnapPx) return g.Dlu;
-        if (chkSnapGrid.IsChecked == true) return Math.Round(dlu / GridStep) * GridStep;
+        if (miSnapGrid.IsChecked == true) return Math.Round(dlu / GridStep) * GridStep;
         return Math.Round(dlu);
     }
     double SnapY(double dlu)
     {
-        if (chkSnapGuide.IsChecked == true)
+        if (miSnapGuide.IsChecked == true)
             foreach (var g in _guides.Where(g => !g.Vertical))
                 if (Math.Abs(g.Dlu - dlu) * Scale <= SnapPx) return g.Dlu;
-        if (chkSnapGrid.IsChecked == true) return Math.Round(dlu / GridStep) * GridStep;
+        if (miSnapGrid.IsChecked == true) return Math.Round(dlu / GridStep) * GridStep;
         return Math.Round(dlu);
     }
 
