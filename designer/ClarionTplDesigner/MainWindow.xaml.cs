@@ -185,6 +185,119 @@ public partial class MainWindow : Window
         catch (Exception ex) { MessageBox.Show("Save failed:\n" + ex.Message); }
     }
 
+    // ---------- preview pending changes (diff vs disk) ----------
+    void PreviewChanges_Click(object s, RoutedEventArgs e)
+    {
+        if (_doc == null) { status.Text = "Open a template first."; return; }
+
+        var fd = new System.Windows.Documents.FlowDocument
+        {
+            FontFamily = new FontFamily("Consolas"), FontSize = 12.5, PagePadding = new Thickness(10)
+        };
+        int changedFiles = 0;
+        for (int fi = 0; fi < _doc.Files.Count; fi++)
+        {
+            var path = _doc.Files[fi].Path;
+            string[] before = System.IO.File.Exists(path)
+                ? System.IO.File.ReadAllText(path).Replace("\r\n", "\n").Split('\n') : Array.Empty<string>();
+            string[] after = TplWriter.PreviewFile(_doc, fi).Replace("\r\n", "\n").Split('\n');
+            if (before.SequenceEqual(after)) continue;
+
+            changedFiles++;
+            var ops = CollapseContext(DiffLines(before, after), 3);
+            int add = ops.Count(o => o.op == '+'), del = ops.Count(o => o.op == '-');
+            fd.Blocks.Add(new System.Windows.Documents.Paragraph(
+                new System.Windows.Documents.Run($"▸ {System.IO.Path.GetFileName(path)}   +{add}  −{del}"))
+            { FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Color.FromRgb(0x0E, 0x1A, 0x2B)),
+              Margin = new Thickness(0, changedFiles > 1 ? 14 : 0, 0, 4) });
+
+            var p = new System.Windows.Documents.Paragraph { Margin = new Thickness(0) };
+            foreach (var (op, text) in ops)
+            {
+                var run = new System.Windows.Documents.Run((op == ' ' ? "  " : op + " ") + text + "\n");
+                if (op == '+') run.Foreground = new SolidColorBrush(Color.FromRgb(0x1E, 0x7C, 0x34));
+                else if (op == '-') run.Foreground = new SolidColorBrush(Color.FromRgb(0xB2, 0x3A, 0x2E));
+                else if (op == '~') run.Foreground = new SolidColorBrush(Color.FromRgb(0xAA, 0xB2, 0xBE));
+                else run.Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x60, 0x6E));
+                p.Inlines.Add(run);
+            }
+            fd.Blocks.Add(p);
+        }
+        if (changedFiles == 0)
+            fd.Blocks.Add(new System.Windows.Documents.Paragraph(
+                new System.Windows.Documents.Run("No pending changes — the files on disk already match the model.")));
+
+        ShowDiffDialog(fd, changedFiles);
+    }
+
+    void ShowDiffDialog(System.Windows.Documents.FlowDocument fd, int changedFiles)
+    {
+        var dlg = new Window
+        {
+            Title = "Preview changes", Owner = this, Width = 820, Height = 620,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = new SolidColorBrush(Color.FromRgb(0xFB, 0xFC, 0xFD))
+        };
+        var grid = new Grid();
+        grid.RowDefinitions.Add(new RowDefinition());
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        var viewer = new FlowDocumentScrollViewer { Document = fd, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        Grid.SetRow(viewer, 0); grid.Children.Add(viewer);
+
+        var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
+                                   Margin = new Thickness(10) };
+        if (changedFiles > 0)
+        {
+            var save = new Button { Content = "Save now", Padding = new Thickness(16, 4, 16, 4), MinWidth = 90, IsDefault = true };
+            save.Click += (_, __) => { dlg.Close(); Save_Click(this, new RoutedEventArgs()); };
+            bar.Children.Add(save);
+        }
+        var close = new Button { Content = "Close", Padding = new Thickness(14, 4, 14, 4), MinWidth = 80,
+                                 Margin = new Thickness(8, 0, 0, 0), IsCancel = true };
+        bar.Children.Add(close);
+        Grid.SetRow(bar, 1); grid.Children.Add(bar);
+        dlg.Content = grid;
+        dlg.ShowDialog();
+    }
+
+    // A minimal LCS line diff: ' ' context, '-' removed, '+' added.
+    static List<(char op, string text)> DiffLines(string[] a, string[] b)
+    {
+        int n = a.Length, m = b.Length;
+        var dp = new int[n + 1, m + 1];
+        for (int i = n - 1; i >= 0; i--)
+            for (int j = m - 1; j >= 0; j--)
+                dp[i, j] = a[i] == b[j] ? dp[i + 1, j + 1] + 1 : Math.Max(dp[i + 1, j], dp[i, j + 1]);
+        var res = new List<(char, string)>();
+        int x = 0, y = 0;
+        while (x < n && y < m)
+        {
+            if (a[x] == b[y]) { res.Add((' ', a[x])); x++; y++; }
+            else if (dp[x + 1, y] >= dp[x, y + 1]) { res.Add(('-', a[x])); x++; }
+            else { res.Add(('+', b[y])); y++; }
+        }
+        while (x < n) res.Add(('-', a[x++]));
+        while (y < m) res.Add(('+', b[y++]));
+        return res;
+    }
+
+    // Keep `ctx` context lines around each change; replace bigger unchanged runs with a single "~" marker.
+    static List<(char op, string text)> CollapseContext(List<(char op, string text)> ops, int ctx)
+    {
+        var keep = new bool[ops.Count];
+        for (int i = 0; i < ops.Count; i++)
+            if (ops[i].op != ' ')
+                for (int j = Math.Max(0, i - ctx); j <= Math.Min(ops.Count - 1, i + ctx); j++) keep[j] = true;
+        var res = new List<(char, string)>();
+        bool gap = false;
+        for (int i = 0; i < ops.Count; i++)
+        {
+            if (keep[i]) { res.Add(ops[i]); gap = false; }
+            else if (!gap) { res.Add(('~', "  …")); gap = true; }
+        }
+        return res;
+    }
+
     void ReloadFromDisk()
     {
         if (_doc == null) return;

@@ -10,6 +10,7 @@
       <Menu DockPanel.Dock="Top">
         <MenuItem Header="_File">
             <MenuItem Header="_Open .tpl…" Click="Open_Click"/>
+            <MenuItem Header="Preview _changes…" Click="PreviewChanges_Click"/>
             <MenuItem Header="_Save" Click="Save_Click" InputGestureText="Ctrl+S"/>
             <Separator/>
             <MenuItem Header="E_xit" Click="Exit_Click"/>
