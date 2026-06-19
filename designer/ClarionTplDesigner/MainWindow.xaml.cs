@@ -132,7 +132,8 @@ public partial class MainWindow : Window
         LoadRecent();
         RefreshRecentMenus();
         Loaded += (_, _) => TryLoadSavedLayout();
-        Closing += (_, _) => { SaveLayout(); SavePrefs(); };
+        Closing += (_, _) => { SaveLayout(); SavePrefs(); StopWatching(); };
+        Activated += (_, _) => CheckExternalChanges();   // re-check on focus: catches saves made while unfocused or any FS event we missed
     }
 
     // ---------- file ----------
@@ -164,6 +165,7 @@ public partial class MainWindow : Window
             Validate();
             PopulateSymbols();
             AddRecent(path);
+            StartWatching();          // watch this file (and its #INCLUDEs) for external edits
         }
         catch (Exception ex) { MessageBox.Show("Parse failed:\n" + ex.Message); }
     }
@@ -292,6 +294,7 @@ public partial class MainWindow : Window
         {
             bool structural = AllElements().Any(el => el.Inserted || el.Deleted || el.Moved);
             TplWriter.Save(_doc);
+            RecordWriteTimes();                    // our own write — re-baseline so it isn't flagged as an external change
             if (structural) ReloadFromDisk();      // re-sync the model so re-saving can't duplicate/re-drop
             else foreach (var f in _doc.Files) f.Dirty = false;   // raw-text edits (rename) are now on disk
             LoadSource();                          // reflect what's now on disk
@@ -423,7 +426,168 @@ public partial class MainWindow : Window
         _undo.Clear(); _redo.Clear();   // line indices changed on disk; old snapshots no longer apply
         _sel = null;
         PopulateParts(partIdx, tabIdx);
+        StartWatching();                // re-baseline write-times and watchers against what's now on disk
     }
+
+    // ---------- external-change detection ----------
+    // The designer holds an in-memory model of the open .tpl set; if another tool (VS Code, an AI
+    // assistant, etc.) rewrites one of those files on disk, the model goes stale and a later Save here
+    // would silently clobber those edits. These watchers notice such writes and reload (or prompt).
+    readonly List<System.IO.FileSystemWatcher> _watchers = new();
+    readonly Dictionary<string, DateTime> _fileWriteTimes = new(StringComparer.OrdinalIgnoreCase); // path -> last write time we know about
+    System.Windows.Threading.DispatcherTimer? _extChangeTimer;   // debounces bursts of FS events into one check
+    bool _extPromptOpen;                                          // a reload prompt is already showing — don't stack another
+
+    void StopWatching()
+    {
+        foreach (var w in _watchers) { try { w.EnableRaisingEvents = false; w.Dispose(); } catch { } }
+        _watchers.Clear();
+    }
+
+    // Re-baseline the last-known write times to whatever is on disk right now. Called after our own
+    // writes and after every (re)load so those changes are never mistaken for an external edit.
+    void RecordWriteTimes()
+    {
+        _fileWriteTimes.Clear();
+        if (_doc == null) return;
+        foreach (var f in _doc.Files)
+        {
+            if (string.IsNullOrEmpty(f.Path)) continue;
+            try { if (System.IO.File.Exists(f.Path)) _fileWriteTimes[f.Path] = System.IO.File.GetLastWriteTimeUtc(f.Path); }
+            catch { }
+        }
+    }
+
+    void StartWatching()
+    {
+        StopWatching();
+        RecordWriteTimes();
+        if (_doc == null) return;
+        var dirs = _doc.Files
+            .Where(f => !string.IsNullOrEmpty(f.Path))
+            .Select(f => SafeDir(f.Path))
+            .Where(d => !string.IsNullOrEmpty(d) && System.IO.Directory.Exists(d))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+        foreach (var dir in dirs)
+        {
+            try
+            {
+                var w = new System.IO.FileSystemWatcher(dir!)
+                {
+                    NotifyFilter = System.IO.NotifyFilters.LastWrite | System.IO.NotifyFilters.Size
+                                 | System.IO.NotifyFilters.FileName | System.IO.NotifyFilters.CreationTime,
+                    IncludeSubdirectories = false,
+                };
+                w.Changed += OnFsEvent;
+                w.Created += OnFsEvent;
+                w.Renamed += OnFsEvent;
+                w.EnableRaisingEvents = true;
+                _watchers.Add(w);
+            }
+            catch { /* watching is best-effort; the Activated re-check still covers us */ }
+        }
+    }
+
+    static string? SafeDir(string path)
+    {
+        try { return System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(path)); } catch { return null; }
+    }
+
+    static string? SafeFull(string path)
+    {
+        try { return System.IO.Path.GetFullPath(path); } catch { return null; }
+    }
+
+    bool IsTrackedPath(string? path)
+    {
+        if (_doc == null || string.IsNullOrEmpty(path)) return false;
+        var full = SafeFull(path);
+        if (full == null) return false;
+        foreach (var f in _doc.Files)
+            if (!string.IsNullOrEmpty(f.Path) && string.Equals(SafeFull(f.Path), full, StringComparison.OrdinalIgnoreCase))
+                return true;
+        return false;
+    }
+
+    // FileSystemWatcher fires on a background thread; just hop to the UI thread and (re)arm the debounce.
+    void OnFsEvent(object sender, System.IO.FileSystemEventArgs e)
+    {
+        bool relevant = IsTrackedPath(e.FullPath)
+                     || (e is System.IO.RenamedEventArgs re && IsTrackedPath(re.OldFullPath));
+        if (!relevant) return;
+        try { Dispatcher.BeginInvoke(new Action(ScheduleExternalCheck)); } catch { }
+    }
+
+    void ScheduleExternalCheck()
+    {
+        if (_extChangeTimer == null)
+        {
+            _extChangeTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+            _extChangeTimer.Tick += (_, _) => CheckExternalChanges();
+        }
+        _extChangeTimer.Stop();   // editors often write in several steps; collapse the burst into one check
+        _extChangeTimer.Start();
+    }
+
+    // Compare disk write-times against what we last recorded. Anything newer was changed by another program.
+    void CheckExternalChanges()
+    {
+        _extChangeTimer?.Stop();
+        if (_doc == null || _extPromptOpen) return;
+        var changed = new List<TplFile>();
+        foreach (var f in _doc.Files)
+        {
+            if (string.IsNullOrEmpty(f.Path)) continue;
+            try
+            {
+                if (!System.IO.File.Exists(f.Path)) continue;
+                var disk = System.IO.File.GetLastWriteTimeUtc(f.Path);
+                if (_fileWriteTimes.TryGetValue(f.Path, out var known) && disk != known) changed.Add(f);
+            }
+            catch { }
+        }
+        if (changed.Count > 0) HandleExternalChange(changed);
+    }
+
+    void HandleExternalChange(List<TplFile> changed)
+    {
+        RecordWriteTimes();   // re-baseline first so we react to this change exactly once
+        string names = string.Join(", ", changed.Select(f => System.IO.Path.GetFileName(f.Path)).Distinct(StringComparer.OrdinalIgnoreCase));
+
+        if (!HasUnsavedEdits())
+        {
+            ReloadFromDisk();   // safe to refresh silently — nothing here to lose
+            LoadSource();
+            status.Text = $"{names} changed on disk — reloaded.";
+            return;
+        }
+
+        _extPromptOpen = true;
+        try
+        {
+            var r = MessageBox.Show(
+                $"{names} was changed by another program, but you have unsaved changes in the designer.\n\n" +
+                "Reload from disk and discard your unsaved changes?",
+                "File changed on disk", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+            if (r == MessageBoxResult.Yes)
+            {
+                ReloadFromDisk();
+                LoadSource();
+                status.Text = $"{names} reloaded from disk.";
+            }
+            else
+            {
+                // Keep the user's edits. Times are already re-baselined, so we won't nag again until the next external write.
+                status.Text = $"{names} changed on disk — kept your unsaved edits (Save will overwrite the external change).";
+            }
+        }
+        finally { _extPromptOpen = false; }
+    }
+
+    bool HasUnsavedEdits() =>
+        _srcDirty
+        || (_doc != null && (_doc.Files.Any(f => f.Dirty)
+                             || AllElements().Any(el => el.Dirty || el.Inserted || el.Deleted || el.Moved)));
 
     // Give every positionable control an explicit AT(x,y,w,h) from the current layout,
     // filling only the missing slots so existing coordinates are kept. Makes everything draggable.
