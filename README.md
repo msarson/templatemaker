@@ -174,8 +174,12 @@ elsewhere pops a warning so you don't break code generation. Selecting a control
 in the Properties pad with a navigable **Uses** list (every place across all files the symbol appears — click
 to jump to that line) and a **Rename** button that renames it *everywhere at once* (prompt **+** every
 reference) so the field stays joined; newly added controls can be named the same way. Select several
-controls and **align / distribute / size them together** (Arrange menu or right-click). An **Outline**
-panel shows the whole `#SHEET`/`#TAB`/`#BOXED`/control tree with a find box; a **Problems** panel flags
+controls and **align / distribute / size them together** (Arrange menu or right-click), or **group them
+into a box** (`Ctrl+G`) / **ungroup** (`Ctrl+Shift+G`). Dragging shows **smart alignment guides** that snap
+to other controls' edges with a live spacing readout. An **Outline** panel shows the whole
+`#SHEET`/`#TAB`/`#BOXED`/control tree with a find box; a **Symbols** panel lists every `%symbol` with its
+use count and click-to-jump; a tab's **`WHERE(...)` visibility condition** is editable from its right-click
+menu; a **Problems** panel flags
 unbalanced blocks, duplicate/unused symbols, off-canvas or overlapping controls and risky auto-built
 prompts (click to jump). Added `#PROMPT` controls get a friendly **type / REQ / DEFAULT** editor, and tabs
 can be **renamed or deleted** (right-click a tab header). Controls can be **copied/cut/pasted/duplicated**

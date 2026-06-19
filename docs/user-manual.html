@@ -199,7 +199,13 @@
       <li><b>Align</b> — left / centre / right and top / middle / bottom, relative to the selection's bounds.</li>
       <li><b>Same size</b> — match width, height or both to the largest in the selection.</li>
       <li><b>Distribute</b> — spread three or more controls evenly (the end ones stay put).</li>
+      <li><b>Group into box</b> (<kbd>Ctrl</kbd>+<kbd>G</kbd>) wraps the selection in a new <code>#BOXED</code>
+          sized to fit; <b>Ungroup</b> (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>G</kbd>) dissolves a box and
+          keeps its children.</li>
     </ul>
+    <div class="callout tip"><b>Smart guides</b> While you drag a control, pink dashed lines appear when its
+       edge or centre lines up with another control, and the status bar shows the distance to the nearest
+       neighbour. Toggle in <b>Preferences ▸ Smart guides</b>.</div>
     <div class="callout tip"><b>Tip</b> Right-clicking a control that isn't in the current selection selects
        just that one; right-click within a multi-selection to act on the whole group.</div>
   </section>
@@ -335,6 +341,14 @@
        (switching tabs as needed); the tree also tracks whatever you select on the canvas.</p>
     <p>The <b>find box</b> at the top filters the tree by control caption or <code>%symbol</code>; press
        <kbd>Enter</kbd> to jump to the first match. Toggle the panel from <b>View ▸ Outline panel</b>.</p>
+    <h3>Symbols panel</h3>
+    <p>The <b>Symbols</b> panel (tabbed with Outline) is a sortable table of every <code>%symbol</code> declared
+       by a control — with its total use count across all files and the part it lives in. Click a row to jump
+       straight to that control.</p>
+    <h3>Tab visibility</h3>
+    <p>Right-click a tab header in the flow preview ▸ <b>Condition (WHERE)…</b> to set, change or clear the
+       tab's <code>WHERE(...)</code> expression — the tab is shown only when it's true (e.g.
+       <code>%Mode=1</code>).</p>
   </section>
 
   <section id="problems">
@@ -414,6 +428,7 @@
       <tr><td><kbd>Ctrl</kbd>+<kbd>Y</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td><td>Redo</td></tr>
       <tr><td><kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>X</kbd> / <kbd>V</kbd></td><td>Copy / cut / paste control(s)</td></tr>
       <tr><td><kbd>Ctrl</kbd>+<kbd>D</kbd></td><td>Duplicate the selection</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>G</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>G</kbd></td><td>Group into box / ungroup</td></tr>
       <tr><td><kbd>Ctrl</kbd>+<kbd>F</kbd></td><td>Find / replace in the source panel</td></tr>
       <tr><td><kbd>Delete</kbd></td><td>Delete the selected control(s)</td></tr>
       <tr><td>Arrow keys</td><td>Nudge selection 1 unit</td></tr>
