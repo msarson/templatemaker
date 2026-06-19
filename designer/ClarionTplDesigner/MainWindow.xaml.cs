@@ -556,8 +556,7 @@ public partial class MainWindow : Window
 
         if (!HasUnsavedEdits())
         {
-            ReloadFromDisk();   // safe to refresh silently — nothing here to lose
-            LoadSource();
+            ReloadPreservingView(() => { ReloadFromDisk(); LoadSource(); });   // safe to refresh silently — nothing here to lose
             status.Text = $"{names} changed on disk — reloaded.";
             return;
         }
@@ -571,8 +570,7 @@ public partial class MainWindow : Window
                 "File changed on disk", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
             if (r == MessageBoxResult.Yes)
             {
-                ReloadFromDisk();
-                LoadSource();
+                ReloadPreservingView(() => { ReloadFromDisk(); LoadSource(); });
                 status.Text = $"{names} reloaded from disk.";
             }
             else
@@ -588,6 +586,37 @@ public partial class MainWindow : Window
         _srcDirty
         || (_doc != null && (_doc.Files.Any(f => f.Dirty)
                              || AllElements().Any(el => el.Dirty || el.Inserted || el.Deleted || el.Moved)));
+
+    // Run a reload that rewrites srcEditor.Text (which sends AvalonEdit back to line 1) while keeping
+    // the source editor looking at roughly the same place — same caret line and same first visible row —
+    // so an external-change reload doesn't yank the user to the top of the file. Best-effort: when the
+    // external edit added or removed lines above the viewport the row numbers still line up; the content
+    // may shift, which matches how editors like VS Code behave on an on-disk reload.
+    void ReloadPreservingView(Action reload)
+    {
+        int caretLine = srcEditor.TextArea.Caret.Line;
+        int caretCol  = srcEditor.TextArea.Caret.Column;
+        var tv = srcEditor.TextArea.TextView;
+        double lh = tv.DefaultLineHeight > 0 ? tv.DefaultLineHeight : srcEditor.FontSize * 1.3;
+        int firstVisible = lh > 0 ? (int)(srcEditor.VerticalOffset / lh) : 0;   // 0-based top row
+
+        reload();
+
+        int lines = srcEditor.Document?.LineCount ?? 0;
+        if (lines <= 0) return;
+        try
+        {
+            srcEditor.TextArea.Caret.Line   = Math.Min(Math.Max(caretLine, 1), lines);
+            srcEditor.TextArea.Caret.Column = Math.Max(caretCol, 1);
+        }
+        catch { }
+        // Defer the scroll until the new document has laid out, otherwise the offset clamps against stale metrics.
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            double target = Math.Min(Math.Max(firstVisible, 0), Math.Max(lines - 1, 0)) * lh;
+            try { srcEditor.ScrollToVerticalOffset(target); } catch { }
+        }), System.Windows.Threading.DispatcherPriority.Loaded);
+    }
 
     // Give every positionable control an explicit AT(x,y,w,h) from the current layout,
     // filling only the missing slots so existing coordinates are kept. Makes everything draggable.
