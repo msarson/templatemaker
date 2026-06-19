@@ -2094,7 +2094,8 @@ public partial class MainWindow : Window
         align.IsEnabled = _selection.Count >= 2;     // align/distribute need a reference control
         root.Items.Add(align);
         root.Items.Add(new Separator());
-        root.Items.Add(ZItem("Move to a clear row below", () => { Pick(); MoveBelowOverlaps(); }));
+        root.Items.Add(ZItem("Move to a clear row above", () => { Pick(); MoveClearRow(false); }));
+        root.Items.Add(ZItem("Move to a clear row below", () => { Pick(); MoveClearRow(true); }));
         root.Items.Add(new Separator());
         // grouping a single control in a box is valid; right-click already ensures it's selected
         root.Items.Add(ZItem(_selection.Count >= 2 ? "Group into box" : "Group into box (this control)",
@@ -2241,11 +2242,12 @@ public partial class MainWindow : Window
     // Lay the selection out flush against each other — a row (left→right) or a column (top→down).
     void PackRow_Click(object s, RoutedEventArgs e) => Pack(true);
     void PackCol_Click(object s, RoutedEventArgs e) => Pack(false);
-    void NewRow_Click(object s, RoutedEventArgs e) => MoveBelowOverlaps();
+    void NewRow_Click(object s, RoutedEventArgs e) => MoveClearRow(down: true);
+    void NewRowUp_Click(object s, RoutedEventArgs e) => MoveClearRow(down: false);
 
-    // Drop the selection straight down so it no longer overlaps any other control (carrying box contents).
-    // Use case: a #BOXED that overlaps the title row above it -> one click puts it on a clear row below.
-    void MoveBelowOverlaps()
+    // Move the selection straight up/down so it no longer overlaps any other control (carrying box contents).
+    // Use case: a #BOXED that overlaps the title row -> one click puts it on a clear row below (or above).
+    void MoveClearRow(bool down)
     {
         var items = AlignTargets();
         if (items.Count == 0 || _tab == null) { status.Text = "Select a control (or box) to move to a clear row."; return; }
@@ -2254,21 +2256,28 @@ public partial class MainWindow : Window
 
         double top = items.Min(e => e.LY), bottom = items.Max(e => e.LY + e.LH);
         double left = items.Min(e => e.LX), right = items.Max(e => e.LX + e.LW);
-        double clearBottom = top; bool found = false;
+        double clearBottom = top, clearTop = bottom; bool found = false;
         foreach (var e in Positionable(_tab))
         {
             if (InSel(e)) continue;
             bool hOver = e.LX < right && e.LX + e.LW > left;
             bool vOver = e.LY < bottom && e.LY + e.LH > top;
-            if (hOver && vOver) { clearBottom = Math.Max(clearBottom, e.LY + e.LH); found = true; }
+            if (!hOver || !vOver) continue;
+            clearBottom = Math.Max(clearBottom, e.LY + e.LH);
+            clearTop = Math.Min(clearTop, e.LY);
+            found = true;
         }
         if (!found) { status.Text = "Nothing overlaps it — already on a clear row."; return; }
 
+        // drop just below the lowest overlapper, or rise just above the highest one
+        double dY = down ? (clearBottom + 4) - top : (clearTop - 4) - bottom;
+        if (!down && top + dY < 0) dY = -top;     // don't push off the top of the window
+        if (Math.Abs(dY) < 0.5) { status.Text = "Already on a clear row."; return; }
+
         PushUndo();
-        double dY = (clearBottom + 4) - top;     // drop just below the lowest overlapping control
         foreach (var el in items)
-            if (!AncestorSelected(el)) MoveElement(el, el.LX, el.LY + dY);   // boxes carry their contents
-        AfterBulkLayout($"Moved the selection to a clear row below (+{(int)Math.Round(dY)}).");
+            if (!AncestorSelected(el)) MoveElement(el, el.LX, Math.Max(0, el.LY + dY));   // boxes carry their contents
+        AfterBulkLayout($"Moved the selection to a clear row {(down ? "below" : "above")} ({(dY >= 0 ? "+" : "")}{(int)Math.Round(dY)}).");
     }
 
     void Pack(bool row)
