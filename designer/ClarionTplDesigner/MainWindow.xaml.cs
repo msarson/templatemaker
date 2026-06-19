@@ -30,6 +30,13 @@ public partial class MainWindow : Window
     TplElement? _tab;
     TplElement? _sel;
 
+    // ---- open templates (one tab each) ----
+    // The fields above are the ACTIVE document's live working set; everything in the file keeps reading
+    // them directly. Switching tabs captures the live state into the outgoing session and restores the
+    // incoming one, so the ~200 existing references don't need to change.
+    readonly List<DocumentSession> _sessions = new();
+    DocumentSession? _active;
+
     double Scale => sldZoom.Value;          // pixels per DLU
     int GridStep => int.TryParse(txtGrid.Text, out var g) && g > 0 ? g : 5;
     const double SnapPx = 6;                 // snap threshold in pixels
@@ -83,6 +90,25 @@ public partial class MainWindow : Window
         public readonly List<(string[] Lines, bool Dirty)> Files = new();   // raw file text, so a symbol rename is undoable
     }
 
+    // One open template (its model plus the editing state that should survive a tab switch).
+    sealed class DocumentSession
+    {
+        public TplDocument Doc = null!;
+        public int PartIndex, TabIndex;                         // selection to restore
+        public readonly List<Snapshot> Undo = new();
+        public readonly List<Snapshot> Redo = new();
+        public readonly List<Guide> Guides = new();
+        public bool SrcLive, SrcDirty;                          // source-panel mode / unapplied editor edits
+        public string? PendingSrcText;                          // editor text when SrcDirty (so edits aren't lost on switch)
+        public bool HasViewState;                               // false until first captured (fresh open keeps the part-scroll)
+        public int SrcCaret;
+        public double SrcScroll;
+        public readonly Dictionary<string, DateTime> WriteTimes = new(StringComparer.OrdinalIgnoreCase);
+        public readonly HashSet<string> DeletedWarned = new(StringComparer.OrdinalIgnoreCase);
+        public string Path => Doc?.Path ?? "";
+        public string Title => string.IsNullOrEmpty(Path) ? "(untitled)" : System.IO.Path.GetFileName(Path);
+    }
+
     [Flags] enum Edge { None = 0, Left = 1, Right = 2, Top = 4, Bottom = 8 }
     Edge _resizeEdge;
     double _rStartX, _rStartY, _rStartW, _rStartH;   // selection rect (DLU) at resize start
@@ -132,8 +158,24 @@ public partial class MainWindow : Window
         LoadRecent();
         RefreshRecentMenus();
         Loaded += (_, _) => TryLoadSavedLayout();
-        Closing += (_, _) => { SaveLayout(); SavePrefs(); StopWatching(); };
+        Closing += Window_Closing;
         Activated += (_, _) => CheckExternalChanges();   // re-check on focus: catches saves made while unfocused or any FS event we missed
+        RefreshDocTabs();
+    }
+
+    void Window_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        CaptureActive();
+        var dirty = _sessions.Where(IsSessionDirty).Select(s => s.Title).ToList();
+        if (dirty.Count > 0)
+        {
+            var r = MessageBox.Show(
+                "These open templates have unsaved changes:\n  " + string.Join("\n  ", dirty) +
+                "\n\nClose anyway and discard them?",
+                "Unsaved changes", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+            if (r != MessageBoxResult.Yes) { e.Cancel = true; return; }
+        }
+        SaveLayout(); SavePrefs(); StopWatching();
     }
 
     // ---------- file ----------
@@ -152,22 +194,199 @@ public partial class MainWindow : Window
             RemoveRecent(path);
             return;
         }
+        // already open? just bring its tab forward instead of loading a duplicate
+        var full = SafeFull(path);
+        var already = _sessions.FirstOrDefault(s => string.Equals(SafeFull(s.Doc.Path), full, StringComparison.OrdinalIgnoreCase));
+        if (already != null) { ActivateSession(already); status.Text = $"{already.Title} is already open."; return; }
         try
         {
-            _doc = TplParser.Parse(path);
-            _undo.Clear(); _redo.Clear();
-            Title = "Clarion Template Designer — " + System.IO.Path.GetFileName(path);
-            PopulateParts(0, 0);
-            SetSource(true);          // show the colour-coded source panel so it's never hidden
-            int files = _doc.Files.Count, comps = _doc.Components.Count;
+            var doc = TplParser.Parse(path);
+            CaptureActive();                                   // stash the current tab before switching away
+            var session = new DocumentSession { Doc = doc, PartIndex = 0, TabIndex = 0 };
+            _sessions.Add(session);
+            ActivateSession(session, captureCurrent: false);   // already captured above
+            SetSource(true);                                   // first open: ensure the source panel is visible
+            int files = doc.Files.Count, comps = doc.Components.Count;
             status.Text = $"Loaded {_parts.Count} editable part(s) of {comps} component(s) across {files} file(s). "
                         + "Pick a Part and Tab; the colour-coded source is in the panel below (toggle with “View Source”).";
-            Validate();
-            PopulateSymbols();
             AddRecent(path);
-            StartWatching();          // watch this file (and its #INCLUDEs) for external edits
         }
         catch (Exception ex) { MessageBox.Show("Parse failed:\n" + ex.Message); }
+    }
+
+    // ---------- open templates (tab per document) ----------
+
+    // Make `s` the active tab: stash the current tab's live state, load `s`'s state into the live fields,
+    // then rebuild the UI from the model. All the existing code keeps reading the live fields unchanged.
+    void ActivateSession(DocumentSession s, bool captureCurrent = true)
+    {
+        if (_active == s) { RefreshDocTabs(); return; }
+        if (captureCurrent) CaptureActive();
+        StopWatching();
+
+        _active = s;
+        _doc = s.Doc;
+        _component = null; _tab = null; _sel = null; _selection.Clear();
+        _undo.Clear(); _undo.AddRange(s.Undo);
+        _redo.Clear(); _redo.AddRange(s.Redo);
+        _guides.Clear(); _guides.AddRange(s.Guides);
+
+        // restore source-panel mode (Click doesn't fire on programmatic IsChecked, so set the chrome ourselves)
+        _srcLive = s.SrcLive; _srcDirty = false;
+        chkLive.IsChecked = s.SrcLive;
+        srcEditor.IsReadOnly = _srcLive;
+        srcEditor.Background = _srcLive ? new SolidColorBrush(Color.FromRgb(0xF1, 0xF3, 0xF6)) : Brushes.White;
+
+        Title = "Clarion Template Designer — " + s.Title;
+        PopulateParts(s.PartIndex, s.TabIndex);   // rebuilds parts/tabs, selects, Render + LoadSource
+        Validate();
+        PopulateSymbols();
+
+        // put back any unapplied editor edits (normal mode only — the live preview is regenerated text)
+        if (!_srcLive && s.PendingSrcText != null)
+        {
+            _loadingSrc = true;
+            try { srcEditor.Text = s.PendingSrcText; } finally { _loadingSrc = false; }
+            _srcDirty = true; btnApplySrc.IsEnabled = true;
+        }
+        if (s.HasViewState) RestoreSrcView(s.SrcCaret, s.SrcScroll);   // fresh opens keep the part-scroll instead
+
+        // restore this doc's watcher baseline, catch edits made while it was backgrounded, then watch it live
+        _fileWriteTimes.Clear(); foreach (var kv in s.WriteTimes) _fileWriteTimes[kv.Key] = kv.Value;
+        _deletedWarned.Clear();  foreach (var p in s.DeletedWarned) _deletedWarned.Add(p);
+        CheckExternalChanges();   // may reload if the file changed while this tab was in the background
+        StartWatching();          // re-baseline + watch the now-active document
+
+        RefreshDocTabs();
+    }
+
+    // Stash the active tab's live editing state back into its session before we switch away.
+    void CaptureActive()
+    {
+        var s = _active;
+        if (s == null || _doc == null) return;
+        s.Doc = _doc;                              // keep the (possibly reloaded) model reference
+        s.PartIndex = cmbParts.SelectedIndex;
+        s.TabIndex = cmbTabs.SelectedIndex;
+        s.Undo.Clear(); s.Undo.AddRange(_undo);
+        s.Redo.Clear(); s.Redo.AddRange(_redo);
+        s.Guides.Clear(); s.Guides.AddRange(_guides);
+        s.SrcLive = _srcLive;
+        s.SrcDirty = _srcDirty && !_srcLive;
+        s.PendingSrcText = s.SrcDirty ? srcEditor.Text : null;
+        s.SrcCaret = srcEditor.CaretOffset;
+        s.SrcScroll = srcEditor.VerticalOffset;
+        s.HasViewState = true;
+        s.WriteTimes.Clear(); foreach (var kv in _fileWriteTimes) s.WriteTimes[kv.Key] = kv.Value;
+        s.DeletedWarned.Clear(); foreach (var p in _deletedWarned) s.DeletedWarned.Add(p);
+    }
+
+    void RestoreSrcView(int caret, double scroll)
+    {
+        var doc = srcEditor.Document;
+        if (doc == null) return;
+        try { srcEditor.CaretOffset = Math.Min(Math.Max(caret, 0), doc.TextLength); } catch { }
+        Dispatcher.BeginInvoke(new Action(() => { try { srcEditor.ScrollToVerticalOffset(scroll); } catch { } }),
+            System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    void CloseSession(DocumentSession s)
+    {
+        if (s == _active) CaptureActive();
+        if (IsSessionDirty(s))
+        {
+            var r = MessageBox.Show($"{s.Title} has unsaved changes. Save before closing?",
+                "Close template", MessageBoxButton.YesNoCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel);
+            if (r == MessageBoxResult.Cancel) return;
+            if (r == MessageBoxResult.Yes)
+            {
+                if (s != _active) ActivateSession(s);
+                Save_Click(this, new RoutedEventArgs());
+                if (IsSessionDirty(s)) return;   // save failed — keep the tab open
+            }
+        }
+
+        int idx = _sessions.IndexOf(s);
+        bool wasActive = s == _active;
+        _sessions.Remove(s);
+        if (wasActive)
+        {
+            _active = null;
+            if (_sessions.Count == 0) ClearToEmptyState();
+            else ActivateSession(_sessions[Math.Min(idx, _sessions.Count - 1)], captureCurrent: false);
+        }
+        RefreshDocTabs();
+    }
+
+    // Back to the no-document state (closing the last tab).
+    void ClearToEmptyState()
+    {
+        StopWatching();
+        _active = null; _doc = null; _component = null; _tab = null; _sel = null;
+        _selection.Clear(); _undo.Clear(); _redo.Clear(); _guides.Clear();
+        _fileWriteTimes.Clear(); _deletedWarned.Clear();
+        cmbParts.ItemsSource = null; cmbParts.SelectedIndex = -1;
+        cmbTabs.ItemsSource = null; cmbTabs.SelectedIndex = -1;
+        Title = "Clarion Template Designer";
+        Render();        // _tab == null clears the canvas
+        LoadSource();    // null file → placeholder text
+        Validate();
+        PopulateSymbols();
+    }
+
+    bool IsSessionDirty(DocumentSession s)
+    {
+        bool srcDirty = s == _active ? (_srcDirty && !_srcLive) : s.SrcDirty;
+        return srcDirty || DocDirty(s.Doc);
+    }
+
+    static bool DocDirty(TplDocument? doc) =>
+        doc != null && (doc.Files.Any(f => f.Dirty) ||
+            doc.Components.SelectMany(c => c.Tabs).SelectMany(Flat).Any(el => el.Dirty || el.Inserted || el.Deleted || el.Moved));
+
+    // Rebuild the tab strip from _sessions (manual, matching the codebase's code-driven UI style).
+    void RefreshDocTabs()
+    {
+        if (docTabs == null) return;
+        docTabs.Children.Clear();
+        foreach (var s in _sessions)
+        {
+            bool active = s == _active;
+            var inner = new StackPanel { Orientation = Orientation.Horizontal };
+            if (IsSessionDirty(s))
+                inner.Children.Add(new TextBlock { Text = "● ", Foreground = Brushes.OrangeRed, FontSize = 10,
+                                                   VerticalAlignment = VerticalAlignment.Center });
+            inner.Children.Add(new TextBlock
+            {
+                Text = s.Title, VerticalAlignment = VerticalAlignment.Center,
+                Foreground = active ? Brushes.Black : new SolidColorBrush(Color.FromRgb(0x55, 0x5A, 0x61)),
+                FontWeight = active ? FontWeights.SemiBold : FontWeights.Normal
+            });
+            var close = new Button
+            {
+                Content = "✕", Width = 16, Height = 16, Margin = new Thickness(6, 0, 0, 0), Padding = new Thickness(0),
+                FontSize = 9, Background = Brushes.Transparent, BorderThickness = new Thickness(0),
+                Cursor = System.Windows.Input.Cursors.Hand, ToolTip = "Close template"
+            };
+            var captured = s;
+            close.Click += (_, e) => { e.Handled = true; CloseSession(captured); };
+            inner.Children.Add(close);
+            var tab = new Border
+            {
+                Child = inner,
+                Padding = new Thickness(9, 3, 5, 3),
+                Margin = new Thickness(0, 2, 2, 0),
+                Background = active ? Brushes.White : new SolidColorBrush(Color.FromRgb(0xD3, 0xD9, 0xE0)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0xC4, 0xCC, 0xD6)),
+                BorderThickness = new Thickness(1, 1, 1, active ? 0 : 1),
+                CornerRadius = new CornerRadius(4, 4, 0, 0),
+                Cursor = System.Windows.Input.Cursors.Hand,
+                ToolTip = s.Path
+            };
+            tab.MouseLeftButtonDown += (_, _) => ActivateSession(captured);
+            docTabs.Children.Add(tab);
+        }
+        docTabBar.Visibility = _sessions.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ---------- recent files (MRU) ----------
@@ -300,6 +519,7 @@ public partial class MainWindow : Window
             LoadSource();                          // reflect what's now on disk
             Validate();
             PopulateSymbols();
+            RefreshDocTabs();                      // clear the tab's unsaved-changes dot
             status.Text = "Saved " + System.IO.Path.GetFileName(_doc.Path);
         }
         catch (Exception ex) { MessageBox.Show("Save failed:\n" + ex.Message); }
@@ -423,10 +643,12 @@ public partial class MainWindow : Window
         if (_doc == null) return;
         int partIdx = cmbParts.SelectedIndex, tabIdx = cmbTabs.SelectedIndex;
         _doc = TplParser.Parse(_doc.Path);
+        if (_active != null) _active.Doc = _doc;   // the active tab now owns the re-parsed model
         _undo.Clear(); _redo.Clear();   // line indices changed on disk; old snapshots no longer apply
         _sel = null;
         PopulateParts(partIdx, tabIdx);
         StartWatching();                // re-baseline write-times and watchers against what's now on disk
+        RefreshDocTabs();               // dirty state changed (back in sync with disk)
     }
 
     // ---------- external-change detection ----------
@@ -1092,6 +1314,7 @@ public partial class MainWindow : Window
         _undo.Add(Capture());
         if (_undo.Count > MaxUndo) _undo.RemoveAt(0);
         _redo.Clear();                 // a fresh edit invalidates the redo stack
+        RefreshDocTabs();              // first edit since save marks the tab dirty
     }
 
     void Undo_Click(object s, RoutedEventArgs e) => Undo();
@@ -1147,14 +1370,16 @@ public partial class MainWindow : Window
     void BeginGesture() { _gestureSnap = Capture(); _gestureChanged = false; }
     void CommitGesture()
     {
-        if (_gestureChanged && _gestureSnap != null)
+        bool changed = _gestureChanged && _gestureSnap != null;
+        if (changed)
         {
-            _undo.Add(_gestureSnap);
+            _undo.Add(_gestureSnap!);
             if (_undo.Count > MaxUndo) _undo.RemoveAt(0);
             _redo.Clear();             // a fresh edit invalidates the redo stack
         }
         _gestureSnap = null; _gestureChanged = false;
         RefreshLiveSource();          // drag/resize move the chips directly (no Render) — refresh now
+        if (changed) RefreshDocTabs();   // a committed move marks the tab dirty
     }
 
     TplFile? CurrentFile()
@@ -1520,9 +1745,11 @@ public partial class MainWindow : Window
     {
         RefreshMinimap();
         if (_loadingSrc) return;
+        bool was = _srcDirty;
         _srcDirty = true; btnApplySrc.IsEnabled = true;
         var f = CurrentFile();
         srcHeader.Text = (f == null ? "SOURCE" : $"SOURCE — {System.IO.Path.GetFileName(f.Path)}") + "  •  edited (Apply to commit)";
+        if (!was) RefreshDocTabs();   // first unapplied edit marks the tab dirty
     }
 
     void RevertSrc_Click(object s, RoutedEventArgs e) => LoadSource();
