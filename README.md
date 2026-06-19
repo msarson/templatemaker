@@ -178,7 +178,10 @@ controls and **align / distribute / size them together** (Arrange menu or right-
 panel shows the whole `#SHEET`/`#TAB`/`#BOXED`/control tree with a find box; a **Problems** panel flags
 unbalanced blocks, duplicate/unused symbols, off-canvas or overlapping controls and risky auto-built
 prompts (click to jump). Added `#PROMPT` controls get a friendly **type / REQ / DEFAULT** editor, and tabs
-can be **renamed or deleted** (right-click a tab header). The **Help** menu opens a built-in **User Manual**
+can be **renamed or deleted** (right-click a tab header). Controls can be **copied/cut/pasted/duplicated**
+(`Ctrl+C/X/V/D`, with fresh `%symbols`), **snippets** drop in ready-made groups (Insert ▸ Snippets), and
+**File ▸ Preview changes** shows a colour-coded per-file diff of exactly what a save will write. The source
+panel has **find/replace** (`Ctrl+F`) and **`%symbol` / `#directive` autocomplete**. The **Help** menu opens a built-in **User Manual**
 (press `F1`) and **Programmer's Reference** — beautifully formatted HTML guides bundled into the app
 (sources in `docs/`). See `designer/ClarionTplDesigner/README.md`.
 

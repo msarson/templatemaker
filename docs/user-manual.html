@@ -84,6 +84,8 @@
     <a href="#move" class="h2">Move, resize, nudge</a>
     <a href="#align" class="h2">Align &amp; distribute</a>
     <a href="#add" class="h2">Adding controls</a>
+    <a href="#clipboard" class="h2">Copy, paste, duplicate</a>
+    <a href="#snippets" class="h2">Snippets</a>
     <a href="#prompttype" class="h2">Prompt type &amp; attributes</a>
     <a href="#props" class="h2">Properties &amp; style</a>
     <a href="#symbols" class="h2">Symbols &amp; rename</a>
@@ -96,7 +98,7 @@
     <a href="#preview" class="h2">Flow preview</a>
     <a href="#source" class="h2">Source panel</a>
     <div class="grp">Finishing</div>
-    <a href="#save" class="h2">Saving</a>
+    <a href="#save" class="h2">Saving &amp; diff</a>
     <a href="#prefs" class="h2">Preferences &amp; layout</a>
     <a href="#keys" class="h2">Keyboard shortcuts</a>
   </nav>
@@ -228,6 +230,27 @@
        <a href="#symbols">Symbols &amp; rename</a>.</div>
   </section>
 
+  <section id="clipboard">
+    <h2>Copy, paste &amp; duplicate <a class="top" href="#intro">↑ top</a></h2>
+    <ul>
+      <li><kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>Ctrl</kbd>+<kbd>X</kbd> copy or cut the selected control(s).</li>
+      <li><kbd>Ctrl</kbd>+<kbd>V</kbd> pastes into the current tab — or into the selected group box — nudged
+          slightly so the copy isn't exactly on top.</li>
+      <li><kbd>Ctrl</kbd>+<kbd>D</kbd> duplicates in place.</li>
+    </ul>
+    <p>A group box pastes with all its children, and every pasted <code>#PROMPT</code> gets a fresh unique
+       <code>%symbol</code> so a paste never silently duplicates a field. Also on the <b>Edit</b> menu and the
+       right-click menu.</p>
+  </section>
+
+  <section id="snippets">
+    <h2>Snippets <a class="top" href="#intro">↑ top</a></h2>
+    <p><b>Insert ▸ Snippets</b> drops a ready-made pattern into the current tab (or selected box) in one
+       click — a <b>group box with three fields</b>, an <b>option group</b> with three radios, <b>two columns
+       of fields</b>, or <b>two check boxes</b>. Each gets fresh <code>%symbols</code>; tweak captions,
+       positions and types afterwards like any other control.</p>
+  </section>
+
   <section id="prompttype">
     <h2>Prompt type &amp; attributes <a class="top" href="#intro">↑ top</a></h2>
     <p>When you select a <code>#PROMPT</code> you add, the Properties pad shows a <b>PROMPT TYPE</b> section:</p>
@@ -353,11 +376,17 @@
       <li><b>Live (pending)</b> shows the source as it <em>would</em> be saved, reflecting all unsaved edits.</li>
       <li><b>Apply</b> writes your hand-edits in the editor back to the file and re-parses;
           <b>Revert</b> discards them.</li>
+      <li><kbd>Ctrl</kbd>+<kbd>F</kbd> opens <b>find / replace</b> in the editor.</li>
+      <li><b>Autocomplete</b> — type <code>%</code> for a list of every symbol in the source, or
+          <code>#</code> for the common template directives.</li>
     </ul>
   </section>
 
   <section id="save">
-    <h2>Saving <a class="top" href="#intro">↑ top</a></h2>
+    <h2>Saving &amp; diff <a class="top" href="#intro">↑ top</a></h2>
+    <p><b>File ▸ Preview changes…</b> shows a colour-coded, per-file <b>diff</b> of exactly what a save would
+       write versus the files on disk (added lines green, removed red) — with a <b>Save now</b> button right
+       in the dialog. Use it to make every save predictable.</p>
     <p><b>File ▸ Save</b> (<kbd>Ctrl</kbd>+<kbd>S</kbd>) writes your changes. The writer is conservative:
        it rewrites only the <code>AT()</code> of moved/resized controls, updates <code>PROP(…)</code> for
        style edits, drops deleted lines, relocates reparented controls, emits added ones, and applies
@@ -378,6 +407,9 @@
       <tr><th>Key</th><th>Action</th></tr>
       <tr><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>Save</td></tr>
       <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>Undo</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>X</kbd> / <kbd>V</kbd></td><td>Copy / cut / paste control(s)</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>D</kbd></td><td>Duplicate the selection</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>F</kbd></td><td>Find / replace in the source panel</td></tr>
       <tr><td><kbd>Delete</kbd></td><td>Delete the selected control(s)</td></tr>
       <tr><td>Arrow keys</td><td>Nudge selection 1 unit</td></tr>
       <tr><td><kbd>Shift</kbd>+arrows</td><td>Nudge selection 5 units</td></tr>
