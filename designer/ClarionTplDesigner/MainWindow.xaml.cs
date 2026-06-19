@@ -1902,7 +1902,8 @@ public partial class MainWindow : Window
         // Build the menu when it opens so it reflects the live selection (multi-select doesn't re-render).
         border.ContextMenuOpening += (_, _) =>
         {
-            if (!_selection.Contains(el)) Select(el);   // right-clicking outside the selection selects this one
+            // select the clicked control, but keep an existing multi-selection so Group/Align act on it
+            if (_selection.Count <= 1 && !_selection.Contains(el)) Select(el);
             border.ContextMenu = BuildChipMenu(el);
         };
         border.MouseLeftButtonDown += Chip_Down;
@@ -2058,17 +2059,21 @@ public partial class MainWindow : Window
             cm.Items.Add(ZItem("Font && Colour…", () => EditFontDialog(el)));
         }
         cm.Items.Add(new Separator());
-        cm.Items.Add(ZItem("Duplicate", () => { if (!_selection.Contains(el)) Select(el); Duplicate(); }));
-        cm.Items.Add(ZItem("Copy", () => { if (!_selection.Contains(el)) Select(el); Copy(); }));
-        cm.Items.Add(ZItem("Delete", () => DeleteControl(el)));
+        cm.Items.Add(ZItem("Duplicate", () => { PickKeep(el); Duplicate(); }));
+        cm.Items.Add(ZItem("Copy", () => { PickKeep(el); Copy(); }));
+        cm.Items.Add(ZItem("Delete", () => { if (_selection.Count > 1 && _selection.Contains(el)) DeleteSelection(); else DeleteControl(el); }));
         return cm;
     }
+
+    // Select the clicked control unless it's already part of a multi-selection (which we keep).
+    void PickKeep(TplElement el) { if (_selection.Count <= 1 && !_selection.Contains(el)) Select(el); }
 
     // The full "Arrange" submenu (z-order, align/size/distribute, group) — shared by the canvas and
     // flow-preview right-click menus. Right-clicking a control that isn't selected selects it first.
     MenuItem BuildArrangeMenu(TplElement el)
     {
-        void Pick() { if (!_selection.Contains(el)) Select(el); }
+        // select the clicked control, but never collapse an existing multi-selection
+        void Pick() { if (_selection.Count <= 1 && !_selection.Contains(el)) Select(el); }
         var root = new MenuItem { Header = "Arrange" };
         root.Items.Add(ZItem("Bring to Front", () => { Pick(); ZFront(el); }));
         root.Items.Add(ZItem("Bring Forward",  () => { Pick(); ZForward(el); }));

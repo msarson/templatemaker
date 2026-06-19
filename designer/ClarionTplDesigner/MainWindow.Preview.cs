@@ -214,7 +214,7 @@ public partial class MainWindow
         // build the menu on open so Arrange reflects the live selection (multi-select doesn't re-render)
         b.ContextMenuOpening += (_, _) =>
         {
-            if (!_selection.Contains(el)) Select(el);
+            if (_selection.Count <= 1 && !_selection.Contains(el)) Select(el);   // keep an existing multi-selection
             b.ContextMenu = BuildPreviewMenu(el);
         };
         b.MouseLeftButtonDown += PreviewElement_Down;
@@ -521,10 +521,10 @@ public partial class MainWindow
         cm.Items.Add(BuildArrangeMenu(el));
         cm.Items.Add(new Separator());
         cm.Items.Add(ZItem("Font && Colour…", () => EditFontDialog(el)));
-        cm.Items.Add(ZItem("Duplicate", () => { if (!_selection.Contains(el)) Select(el); Duplicate(); }));
-        cm.Items.Add(ZItem("Copy", () => { if (!_selection.Contains(el)) Select(el); Copy(); }));
+        cm.Items.Add(ZItem("Duplicate", () => { PickKeep(el); Duplicate(); }));
+        cm.Items.Add(ZItem("Copy", () => { PickKeep(el); Copy(); }));
         cm.Items.Add(new Separator());
-        cm.Items.Add(ZItem("Delete", () => { if (!_selection.Contains(el)) Select(el); DeleteSelection(); }));
+        cm.Items.Add(ZItem("Delete", () => { PickKeep(el); DeleteSelection(); }));
         return cm;
     }
 
