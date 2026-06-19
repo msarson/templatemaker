@@ -71,7 +71,7 @@ public partial class MainWindow : Window
     IHighlightingDefinition? _clarionHl;
 
     // panel layout persistence
-    FrameworkElement? _designerContent, _sourceContent, _propsContent, _outlineContent, _problemsContent;
+    FrameworkElement? _designerContent, _sourceContent, _propsContent, _outlineContent, _problemsContent, _symbolsContent;
     bool _buildingOutline;
     string? _defaultLayoutXml;
     LayoutAnchorable? _wiredSource;
@@ -118,8 +118,10 @@ public partial class MainWindow : Window
         _propsContent = (FrameworkElement)anchProps.Content;
         _outlineContent = (FrameworkElement)anchOutline.Content;
         _problemsContent = (FrameworkElement)anchProblems.Content;
+        _symbolsContent = (FrameworkElement)anchSymbols.Content;
         miViewOutline.IsChecked = anchOutline.IsVisible;
         miViewProblems.IsChecked = anchProblems.IsVisible;
+        miViewSymbols.IsChecked = anchSymbols.IsVisible;
         try { _defaultLayoutXml = SerializeLayout(); } catch { }
         LoadPrefs();
         LoadRecent();
@@ -155,6 +157,7 @@ public partial class MainWindow : Window
             status.Text = $"Loaded {_parts.Count} editable part(s) of {comps} component(s) across {files} file(s). "
                         + "Pick a Part and Tab; the colour-coded source is in the panel below (toggle with “View Source”).";
             Validate();
+            PopulateSymbols();
             AddRecent(path);
         }
         catch (Exception ex) { MessageBox.Show("Parse failed:\n" + ex.Message); }
@@ -288,6 +291,7 @@ public partial class MainWindow : Window
             else foreach (var f in _doc.Files) f.Dirty = false;   // raw-text edits (rename) are now on disk
             LoadSource();                          // reflect what's now on disk
             Validate();
+            PopulateSymbols();
             status.Text = "Saved " + System.IO.Path.GetFileName(_doc.Path);
         }
         catch (Exception ex) { MessageBox.Show("Save failed:\n" + ex.Message); }
@@ -1001,6 +1005,7 @@ public partial class MainWindow : Window
                     "props" => _propsContent,
                     "outline" => _outlineContent,
                     "problems" => _problemsContent,
+                    "symbols" => _symbolsContent,
                     _ => null
                 };
                 if (e.Content == null) e.Cancel = true;
@@ -1012,10 +1017,12 @@ public partial class MainWindow : Window
             var src = FindAnchorable("source"); if (src != null) WireSource(src);
             EnsureOutline();                          // a layout saved before these panels won't contain them
             EnsureProblems();
+            EnsureSymbols();
             _srcOpen = anchSource?.IsVisible ?? false;
             miViewSource.IsChecked = _srcOpen;
             miViewOutline.IsChecked = anchOutline?.IsVisible ?? false;
             miViewProblems.IsChecked = anchProblems?.IsVisible ?? false;
+            miViewSymbols.IsChecked = anchSymbols?.IsVisible ?? false;
         }
         catch { /* a bad/old layout file must never break startup */ }
     }
@@ -1044,6 +1051,17 @@ public partial class MainWindow : Window
         if (pane == null || _problemsContent == null) return;
         anchProblems = new LayoutAnchorable { ContentId = "problems", Title = "Problems", Content = _problemsContent };
         pane.Children.Add(anchProblems);
+    }
+
+    void EnsureSymbols()
+    {
+        var existing = FindAnchorable("symbols");
+        if (existing != null) { anchSymbols = existing; return; }
+        var pane = FindAnchorable("outline")?.Parent as LayoutAnchorablePane
+                   ?? dockMgr.Layout.Descendents().OfType<LayoutAnchorablePane>().FirstOrDefault();
+        if (pane == null || _symbolsContent == null) return;
+        anchSymbols = new LayoutAnchorable { ContentId = "symbols", Title = "Symbols", Content = _symbolsContent };
+        pane.Children.Add(anchSymbols);
     }
 
     void TryLoadSavedLayout()
@@ -2466,6 +2484,69 @@ public partial class MainWindow : Window
         if (!_srcOpen) SetSource(true);               // make sure the source panel is visible to show the line
         if (p.El != null) SelectFromOutline(p.El);    // selects the control + scrolls/highlights its source line
         else if (p.File >= 0) GotoUsage(p.File, Math.Max(0, p.Line));
+    }
+
+    // ---------- symbol browser ----------
+    public sealed class SymRow
+    {
+        public string Sym { get; set; } = "";
+        public int Count { get; set; }
+        public string Part { get; set; } = "";
+        public TplElement? El;
+        public int CompIndex;
+    }
+    List<SymRow> _symRows = new();
+
+    void Symbols_Toggle(object s, RoutedEventArgs e)
+    {
+        if (anchSymbols == null) return;
+        if (miViewSymbols.IsChecked) { anchSymbols.Show(); anchSymbols.IsActive = true; PopulateSymbols(); }
+        else anchSymbols.Hide();
+    }
+
+    void Symbols_Refresh(object s, RoutedEventArgs e) => PopulateSymbols();
+
+    void PopulateSymbols()
+    {
+        if (lstSymbols == null) return;
+        _symRows = new List<SymRow>();
+        if (_doc == null) { lstSymbols.ItemsSource = null; if (symSummary != null) symSummary.Text = ""; return; }
+
+        // total occurrences of each %symbol across all files
+        var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var f in _doc.Files)
+            foreach (var l in f.Lines)
+                foreach (System.Text.RegularExpressions.Match m in
+                         System.Text.RegularExpressions.Regex.Matches(l, @"%[A-Za-z]\w*"))
+                    counts[m.Value] = counts.GetValueOrDefault(m.Value) + 1;
+
+        // one row per symbol declared by a control (navigable)
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (int ci = 0; ci < _doc.Components.Count; ci++)
+            foreach (var t in _doc.Components[ci].Tabs)
+                foreach (var el in Flat(t))
+                    if (!el.Deleted && !string.IsNullOrEmpty(el.Symbol) && seen.Add(el.Symbol))
+                        _symRows.Add(new SymRow
+                        {
+                            Sym = el.Symbol, Count = counts.GetValueOrDefault(el.Symbol),
+                            Part = _doc.Components[ci].Name, El = el, CompIndex = ci
+                        });
+
+        _symRows = _symRows.OrderBy(r => r.Sym, StringComparer.OrdinalIgnoreCase).ToList();
+        lstSymbols.ItemsSource = _symRows;
+        symSummary.Text = $"{_symRows.Count} symbol(s)";
+    }
+
+    void Symbol_Navigate(object s, SelectionChangedEventArgs e)
+    {
+        if (lstSymbols.SelectedItem is not SymRow r || r.El == null || _doc == null) return;
+        if (r.CompIndex >= 0 && r.CompIndex < _doc.Components.Count)
+        {
+            int pi = _parts.IndexOf(_doc.Components[r.CompIndex]);
+            if (pi >= 0 && pi != cmbParts.SelectedIndex) cmbParts.SelectedIndex = pi;   // switch part if needed
+        }
+        if (!_srcOpen) SetSource(true);
+        SelectFromOutline(r.El);
     }
 
     // A small bordered button simulating Clarion's auto-built dropdown (▾) / lookup (…) control.

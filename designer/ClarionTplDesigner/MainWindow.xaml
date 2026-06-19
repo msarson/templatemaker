@@ -132,6 +132,7 @@
             <MenuItem x:Name="miPreviewPending" Header="Preview _unsaved work (off = saved file)" IsCheckable="True" IsChecked="True" Click="PreviewPending_Toggle"/>
             <MenuItem x:Name="miViewSource" Header="_Source panel" IsCheckable="True" Click="Source_Click"/>
             <MenuItem x:Name="miViewOutline" Header="_Outline panel" IsCheckable="True" Click="Outline_Toggle"/>
+            <MenuItem x:Name="miViewSymbols" Header="S_ymbols panel" IsCheckable="True" Click="Symbols_Toggle"/>
             <MenuItem x:Name="miViewProblems" Header="_Problems panel" IsCheckable="True" Click="Problems_Toggle"/>
             <Separator/>
             <MenuItem Header="_Reset panel layout" Click="ResetLayout_Click"/>
@@ -249,6 +250,27 @@
                         </Style>
                       </TreeView.Resources>
                     </TreeView>
+                  </DockPanel>
+                </avalonDock:LayoutAnchorable>
+                <avalonDock:LayoutAnchorable x:Name="anchSymbols" Title="Symbols" ContentId="symbols" CanClose="True">
+                  <DockPanel Background="#FBFCFD">
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="6,4">
+                      <Button Content="↻ Refresh" Padding="9,1" Click="Symbols_Refresh"
+                              ToolTip="Re-scan the template for %symbols"/>
+                      <TextBlock x:Name="symSummary" VerticalAlignment="Center" Margin="10,0,0,0"
+                                 FontSize="12" Foreground="#6E7885"/>
+                    </StackPanel>
+                    <ListView x:Name="lstSymbols" BorderThickness="0" FontSize="12"
+                              SelectionChanged="Symbol_Navigate"
+                              ToolTip="Every %symbol declared by a control. Click to jump to it.">
+                      <ListView.View>
+                        <GridView>
+                          <GridViewColumn Header="Symbol" Width="150" DisplayMemberBinding="{Binding Sym}"/>
+                          <GridViewColumn Header="Uses" Width="46" DisplayMemberBinding="{Binding Count}"/>
+                          <GridViewColumn Header="Part" Width="120" DisplayMemberBinding="{Binding Part}"/>
+                        </GridView>
+                      </ListView.View>
+                    </ListView>
                   </DockPanel>
                 </avalonDock:LayoutAnchorable>
               </avalonDock:LayoutAnchorablePane>
