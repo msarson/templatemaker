@@ -111,6 +111,10 @@ public partial class MainWindow : Window
         srcEditor.TextArea.TextView.BackgroundRenderers.Add(_lineHi);
         SearchPanel.Install(srcEditor);                       // Ctrl+F find/replace in the source
         srcEditor.TextArea.TextEntered += Src_TextEntered;    // %symbol / #directive autocomplete
+        srcEditor.PreviewTextInput += (_, e2) =>              // typing into the read-only live preview -> hint
+        {
+            if (_srcLive) { status.Text = "This is a read-only live preview — uncheck “Live (pending)” to edit the source, then Apply."; e2.Handled = true; }
+        };
         _ready = true;
 
         // remember panel contents + the pristine layout, then restore the user's saved layout
@@ -1168,6 +1172,7 @@ public partial class MainWindow : Window
     {
         _srcLive = chkLive.IsChecked == true;
         srcEditor.IsReadOnly = _srcLive;
+        srcEditor.Background = _srcLive ? new SolidColorBrush(Color.FromRgb(0xF1, 0xF3, 0xF6)) : Brushes.White;
         btnApplySrc.IsEnabled = !_srcLive && _srcDirty;
         LoadSource();
     }
@@ -1182,7 +1187,8 @@ public partial class MainWindow : Window
         finally { _loadingSrc = false; }
         _srcDirty = false; btnApplySrc.IsEnabled = false;
         var f = CurrentFile();
-        srcHeader.Text = (f == null ? "SOURCE" : $"SOURCE — {System.IO.Path.GetFileName(f.Path)}") + "  •  live (unsaved)";
+        srcHeader.Text = (f == null ? "SOURCE" : $"SOURCE — {System.IO.Path.GetFileName(f.Path)}")
+                       + "  •  live preview — read-only (uncheck “Live” to edit)";
         RebuildPendingMap();
         RefreshMinimap();
         UpdateSourceHighlights();
