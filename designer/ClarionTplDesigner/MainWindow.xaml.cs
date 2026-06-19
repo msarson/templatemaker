@@ -602,12 +602,15 @@ public partial class MainWindow : Window
 
         reload();
 
-        int lines = srcEditor.Document?.LineCount ?? 0;
-        if (lines <= 0) return;
+        var doc = srcEditor.Document;
+        int lines = doc?.LineCount ?? 0;
+        if (doc == null || lines <= 0) return;
         try
         {
-            srcEditor.TextArea.Caret.Line   = Math.Min(Math.Max(caretLine, 1), lines);
-            srcEditor.TextArea.Caret.Column = Math.Max(caretCol, 1);
+            int line = Math.Min(Math.Max(caretLine, 1), lines);                  // file may have shrunk below the old line
+            var dl = doc.GetLineByNumber(line);
+            int col = Math.Min(Math.Max(caretCol, 1), dl.Length + 1);            // and the line itself may now be shorter
+            srcEditor.CaretOffset = dl.Offset + (col - 1);                       // set by offset so the position is always valid
         }
         catch { }
         // Defer the scroll until the new document has laid out, otherwise the offset clamps against stale metrics.
