@@ -24,6 +24,7 @@ public class TplElement
     public string PromptType = ""; // CHECK / @s255 / SPIN(..) / OPTION / RADIO / OPENDIALOG(..)
     public bool Req;               // ,REQ attribute (entry must be filled)
     public string DefaultExpr = "";// literal inside DEFAULT(...), e.g. '39', %Sym, 'AJE'
+    public string Where = "";      // WHERE(...) condition (tab visibility), without the WHERE() wrapper
 
     // AT(x,y,w,h) - which slots were present, and their DLU values.
     public bool HasAt, HasX, HasY, HasW, HasH;
@@ -52,7 +53,7 @@ public class TplElement
         {
             Kind = Kind, LineIndex = LineIndex, EndLineIndex = EndLineIndex,
             Deleted = Deleted, Inserted = Inserted, Moved = Moved, MoveAnchorLine = MoveAnchorLine,
-            Title = Title, Symbol = Symbol, PromptType = PromptType, Req = Req, DefaultExpr = DefaultExpr,
+            Title = Title, Symbol = Symbol, PromptType = PromptType, Req = Req, DefaultExpr = DefaultExpr, Where = Where,
             HasAt = HasAt, HasX = HasX, HasY = HasY, HasW = HasW, HasH = HasH,
             X = X, Y = Y, W = W, H = H,
             FontName = FontName, FontSize = FontSize, FontColor = FontColor, FontStyle = FontStyle,
@@ -273,6 +274,9 @@ public static class TplParser
             var sym = Regex.Match(line, @"%(\w+)");
             if (sym.Success && line.Contains("%")) e.Symbol = "";
         }
+
+        var wh = Regex.Match(line, @"\bWHERE\(\s*(.*?)\s*\)\s*(?:,|$)", RegexOptions.IgnoreCase);
+        if (wh.Success) e.Where = wh.Groups[1].Value.Trim();
 
         ParseAt(line, e);
         ParseProps(line, e);
@@ -500,7 +504,7 @@ public static class TplWriter
         string at = $"AT({e.X},{e.Y},{e.W},{e.H})";
         return e.Kind switch
         {
-            TplKind.Tab     => $"{ind}#TAB('{Esc(e.Title)}')",
+            TplKind.Tab     => $"{ind}#TAB('{Esc(e.Title)}')" + (e.Where.Length > 0 ? $",WHERE({e.Where})" : ""),
             TplKind.Display => $"{ind}#DISPLAY('{Esc(e.Title)}'),{at}",
             TplKind.Image   => $"{ind}#IMAGE('{Esc(e.Title)}'),{at}",
             TplKind.Boxed   => $"{ind}#BOXED('{Esc(e.Title)}'),{at}",

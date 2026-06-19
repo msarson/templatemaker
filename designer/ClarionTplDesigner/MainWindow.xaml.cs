@@ -612,6 +612,33 @@ public partial class MainWindow : Window
         status.Text = $"Renamed tab to \"{name}\".  Save to write the change.";
     }
 
+    void EditTabWhere(TplElement tab)
+    {
+        if (_doc == null || _component == null) return;
+        string? cond = AskText("Tab visibility condition",
+            "WHERE(...) — shown only when true; blank = always shown:", tab.Where);
+        if (cond == null) return;
+        cond = cond.Trim();
+        PushUndo();
+        tab.Where = cond;
+        if (!tab.Inserted && tab.LineIndex >= 0)          // rewrite the existing #TAB line
+        {
+            var f = _doc.Files[_component.FileIndex];
+            if (tab.LineIndex < f.Lines.Length)
+            {
+                var line = f.Lines[tab.LineIndex];
+                line = System.Text.RegularExpressions.Regex.Replace(line, @",?\s*WHERE\([^)]*\)", "",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);     // strip any existing WHERE
+                if (cond.Length > 0) line = line.TrimEnd() + $",WHERE({cond})";
+                f.Lines[tab.LineIndex] = line;
+                f.Dirty = true;
+            }
+        }
+        Render();
+        status.Text = cond.Length > 0 ? $"Tab “{tab.Title}” shows when {cond}.  Save to write."
+                                      : $"Tab “{tab.Title}” always shows.  Save to write.";
+    }
+
     void DeleteTab(TplElement tab)
     {
         if (_doc == null || _component == null) return;

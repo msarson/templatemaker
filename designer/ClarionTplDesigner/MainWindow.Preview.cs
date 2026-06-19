@@ -111,6 +111,8 @@ public partial class MainWindow
                 var tabRef = tab;
                 hdr.ContextMenu = new ContextMenu();
                 hdr.ContextMenu.Items.Add(ZItem("Rename tab…", () => RenameTab(tabRef)));
+                hdr.ContextMenu.Items.Add(ZItem(tabRef.Where.Length > 0 ? "Condition (WHERE)…  ✓" : "Condition (WHERE)…",
+                                                () => EditTabWhere(tabRef)));
                 hdr.ContextMenu.Items.Add(ZItem("Delete tab",  () => DeleteTab(tabRef)));
                 hdr.MouseLeftButtonDown += Tab_HeaderDown;
                 hdr.MouseMove += Tab_HeaderMove;
