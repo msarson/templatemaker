@@ -1088,6 +1088,7 @@ public partial class MainWindow : Window
             if (d.TryGetValue("showGrid", out var sg)) miShowGrid.IsChecked = sg == "1";
             if (d.TryGetValue("snapGrid", out var sn)) miSnapGrid.IsChecked = sn == "1";
             if (d.TryGetValue("snapGuide", out var su)) miSnapGuide.IsChecked = su == "1";
+            if (d.TryGetValue("smartGuides", out var smg)) miSmartGuides.IsChecked = smg == "1";
             if (d.TryGetValue("minimap", out var mm)) miMinimap.IsChecked = mm == "1";
             if (d.TryGetValue("gridSize", out var gs) && int.TryParse(gs, out _)) txtGrid.Text = gs;
             if (d.TryGetValue("previewWidth", out var pw) && int.TryParse(pw, out var pwv))
@@ -1114,6 +1115,7 @@ public partial class MainWindow : Window
                 $"showGrid={(miShowGrid.IsChecked == true ? 1 : 0)}",
                 $"snapGrid={(miSnapGrid.IsChecked == true ? 1 : 0)}",
                 $"snapGuide={(miSnapGuide.IsChecked == true ? 1 : 0)}",
+                $"smartGuides={(miSmartGuides.IsChecked == true ? 1 : 0)}",
                 $"minimap={(miMinimap.IsChecked == true ? 1 : 0)}",
                 $"gridSize={GridStep}",
                 $"previewWidth={_previewWidth}",
@@ -2959,7 +2961,12 @@ public partial class MainWindow : Window
         {
             double nx = SnapX(_elStartX + (p.X - _dragStart.X) / Scale);
             double ny = SnapY(_elStartY + (p.Y - _dragStart.Y) / Scale);
-            if (_selection.Count <= 1) MoveElement(_dragEl, nx, ny);
+            ClearSmartGuides();
+            if (_selection.Count <= 1)
+            {
+                if (miSmartGuides.IsChecked == true) (nx, ny) = SmartSnap(_dragEl, nx, ny);
+                MoveElement(_dragEl, nx, ny);
+            }
             else MoveGroup(nx - _elStartX, ny - _elStartY);     // move the whole selection by the same delta
         }
         else if (_drag == Drag.Resize && _sel != null)
@@ -3010,6 +3017,7 @@ public partial class MainWindow : Window
         else if (_drag == Drag.Element && _dragEl != null && !_dragEl.IsContainer && _selection.Count <= 1)
             TryReparent(_dragEl);            // dropping a single control may move it in/out of a group box
         bool wasElementGesture = _drag is Drag.Element or Drag.Resize;
+        ClearSmartGuides();
         canvas.ReleaseMouseCapture();
         _drag = Drag.None; _dragEl = null; _dragGuide = null;
         if (wasElementGesture) CommitGesture();
@@ -3235,6 +3243,85 @@ public partial class MainWindow : Window
         txtW.Text = el.W.ToString(); txtH.Text = el.H.ToString();
         _suppressProp = false;
         status.Text = $"{el.Display}  →  AT({el.X},{el.Y},{el.W},{el.H})";
+    }
+
+    // ---------- smart guides: snap a dragged control to other controls' edges/centres ----------
+    static readonly Brush SmartBrush = new SolidColorBrush(Color.FromRgb(0xE0, 0x3C, 0x8A));   // pink alignment line
+    readonly List<System.Windows.Shapes.Line> _smartLines = new();
+
+    void ClearSmartGuides()
+    {
+        foreach (var l in _smartLines) canvas.Children.Remove(l);
+        _smartLines.Clear();
+    }
+
+    void AddSmartLine(bool vertical, double dlu)
+    {
+        var ln = new System.Windows.Shapes.Line
+        {
+            Stroke = SmartBrush, StrokeThickness = 1, IsHitTestVisible = false,
+            StrokeDashArray = new DoubleCollection { 3, 2 }
+        };
+        if (vertical) { ln.X1 = ln.X2 = dlu * Scale; ln.Y1 = 0; ln.Y2 = canvas.Height; }
+        else { ln.Y1 = ln.Y2 = dlu * Scale; ln.X1 = 0; ln.X2 = canvas.Width; }
+        Panel.SetZIndex(ln, 2_500_000);
+        canvas.Children.Add(ln);
+        _smartLines.Add(ln);
+    }
+
+    (double nx, double ny) SmartSnap(TplElement drag, double nx, double ny)
+    {
+        if (_tab == null) return (nx, ny);
+        var peers = Positionable(_tab).Where(e => e != drag && !e.Deleted && e.LW > 0 && e.LH > 0
+                                                  && !IsAncestor(drag, e) && !IsAncestor(e, drag)).ToList();
+        if (peers.Count == 0) return (nx, ny);
+        double thr = SnapPx / Scale, w = drag.LW, h = drag.LH;
+
+        var xt = peers.SelectMany(e => new[] { e.LX, e.LX + e.LW / 2, e.LX + e.LW });
+        var yt = peers.SelectMany(e => new[] { e.LY, e.LY + e.LH / 2, e.LY + e.LH });
+        var (sx, snX, lineX) = Snap1D(nx, w, xt, thr);
+        var (sy, snY, lineY) = Snap1D(ny, h, yt, thr);
+        if (snX) { nx = sx; AddSmartLine(true, lineX); }
+        if (snY) { ny = sy; AddSmartLine(false, lineY); }
+
+        ShowSpacing(drag, peers, nx, ny);
+        return (nx, ny);
+    }
+
+    // Align one axis: try the dragged edge's left/centre/right (or top/mid/bottom) against each target.
+    static (double pos, bool snapped, double line) Snap1D(double start, double size, IEnumerable<double> targets, double thr)
+    {
+        double[] edges = { start, start + size / 2, start + size };
+        double best = double.MaxValue, pos = start, line = 0; bool snapped = false;
+        foreach (var t in targets)
+            for (int k = 0; k < 3; k++)
+            {
+                double d = Math.Abs(edges[k] - t);
+                if (d <= thr && d < best) { best = d; pos = start + (t - edges[k]); line = t; snapped = true; }
+            }
+        return (pos, snapped, line);
+    }
+
+    void ShowSpacing(TplElement d, List<TplElement> peers, double nx, double ny)
+    {
+        double r = nx + d.LW, b = ny + d.LH;
+        double? gx = null, gy = null;
+        foreach (var e in peers)
+        {
+            if (ny < e.LY + e.LH && b > e.LY)            // vertically overlapping -> horizontal gap
+            {
+                double g = e.LX >= r ? e.LX - r : (nx >= e.LX + e.LW ? nx - (e.LX + e.LW) : -1);
+                if (g >= 0 && (gx == null || g < gx)) gx = g;
+            }
+            if (nx < e.LX + e.LW && r > e.LX)            // horizontally overlapping -> vertical gap
+            {
+                double g = e.LY >= b ? e.LY - b : (ny >= e.LY + e.LH ? ny - (e.LY + e.LH) : -1);
+                if (g >= 0 && (gy == null || g < gy)) gy = g;
+            }
+        }
+        status.Text = $"AT({(int)Math.Round(nx)},{(int)Math.Round(ny)},{d.W},{d.H})"
+                    + (gx != null ? $"   ↔ {Math.Round(gx.Value)}" : "")
+                    + (gy != null ? $"   ↕ {Math.Round(gy.Value)}" : "");
     }
 
     double SnapX(double dlu)

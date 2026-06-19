@@ -124,6 +124,7 @@
             <MenuItem x:Name="miShowGrid"  Header="Show _grid"      IsCheckable="True" Click="ShowGrid_Changed"/>
             <MenuItem x:Name="miSnapGrid"  Header="Snap to gri_d"   IsCheckable="True" IsChecked="True"/>
             <MenuItem x:Name="miSnapGuide" Header="Snap to g_uides" IsCheckable="True" IsChecked="True"/>
+            <MenuItem x:Name="miSmartGuides" Header="S_mart guides (align to controls)" IsCheckable="True" IsChecked="True"/>
             <Separator/>
             <MenuItem x:Name="miMinimap"   Header="Show _minimap"   IsCheckable="True" Click="Minimap_Toggle"/>
         </MenuItem>
