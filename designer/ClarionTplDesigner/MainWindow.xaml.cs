@@ -2116,6 +2116,9 @@ public partial class MainWindow : Window
         root.Items.Add(ZItem("Same Width",  () => SameSize("w")));
         root.Items.Add(ZItem("Same Height", () => SameSize("h")));
         root.Items.Add(ZItem("Same Both",   () => SameSize("both")));
+        root.Items.Add(new Separator());
+        root.Items.Add(ZItem("Pack into a row",    () => Pack(true)));
+        root.Items.Add(ZItem("Pack into a column", () => Pack(false)));
         if (_selection.Count >= 3)
         {
             root.Items.Add(new Separator());
@@ -2231,6 +2234,32 @@ public partial class MainWindow : Window
         RefreshSelectionVisual();
         RefreshLiveSource();
         status.Text = msg + "  Save to write the new AT() values.";
+    }
+
+    // Lay the selection out flush against each other — a row (left→right) or a column (top→down).
+    void PackRow_Click(object s, RoutedEventArgs e) => Pack(true);
+    void PackCol_Click(object s, RoutedEventArgs e) => Pack(false);
+
+    void Pack(bool row)
+    {
+        // Keep selection order: the FIRST-selected control anchors the row/column; the rest follow it.
+        var items = AlignTargets();
+        if (items.Count < 2) { status.Text = "Select two or more controls to pack together (the first one selected leads)."; return; }
+        PushUndo();
+        const double gap = 4;     // small breathing space between controls (DLU)
+        var first = items[0];
+        if (row)
+        {
+            double y0 = first.LY, x = first.LX;
+            foreach (var el in items) { MoveElement(el, x, y0); x += el.LW + gap; }
+        }
+        else
+        {
+            double x0 = first.LX, y = first.LY;
+            foreach (var el in items) { MoveElement(el, x0, y); y += el.LH + gap; }
+        }
+        AfterBulkLayout($"Packed {items.Count} controls into a {(row ? "row" : "column")} after “{first.Display}”."
+                      + (_preview && !_previewTrueLayout ? "  Turn on “True layout” to see them side by side." : ""));
     }
 
     // ---------- group / ungroup ----------
