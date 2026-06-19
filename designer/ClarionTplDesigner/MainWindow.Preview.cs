@@ -160,8 +160,22 @@ public partial class MainWindow
                     ApplyFont(disp, el); content = disp;
                     break;
                 case TplKind.Image:
-                    content = new TextBlock { Text = "🖼 " + el.Title, Margin = new Thickness(0, 2, 0, 2),
-                        IsHitTestVisible = false, Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x95, 0xA3)) };
+                    var bmp = ResolveImage(el.Title);
+                    if (bmp != null)
+                    {
+                        double f = PreviewFactor;
+                        content = new System.Windows.Controls.Image
+                        {
+                            Source = bmp, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly,
+                            IsHitTestVisible = false, SnapsToDevicePixels = true,
+                            HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 2, 0, 2),
+                            MaxWidth = el.HasW && el.W > 0 ? el.W * f : bmp.PixelWidth,
+                            MaxHeight = el.HasH && el.H > 0 ? el.H * f : bmp.PixelHeight
+                        };
+                    }
+                    else
+                        content = new TextBlock { Text = "🖼 " + el.Title, Margin = new Thickness(0, 2, 0, 2),
+                            IsHitTestVisible = false, Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x95, 0xA3)) };
                     break;
                 case TplKind.Boxed:
                     var gb = new GroupBox { Header = el.Title, Margin = new Thickness(0, 4, 0, 4) };
