@@ -6,10 +6,44 @@
         xmlns:avalonDock="https://github.com/Dirkster99/AvalonDock"
         Title="Clarion Template Designer" Height="780" Width="1180"
         FontFamily="Segoe UI" UseLayoutRounding="True">
+    <Window.Resources>
+        <Style x:Key="IconBtn" TargetType="Button">
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="Foreground" Value="#33424F"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Margin" Value="1,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#E2E8F0"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#CFD8E3"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#AEB6C0"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
     <DockPanel>
       <Menu DockPanel.Dock="Top">
         <MenuItem Header="_File">
             <MenuItem Header="_Open .tpl…" Click="Open_Click"/>
+            <MenuItem x:Name="miRecentFile" Header="Open _Recent" SubmenuOpened="RecentBar_Opened"/>
             <MenuItem Header="Preview _changes…" Click="PreviewChanges_Click"/>
             <MenuItem Header="_Save" Click="Save_Click" InputGestureText="Ctrl+S"/>
             <Separator/>
@@ -105,6 +139,31 @@
             <MenuItem Header="_About Clarion Template Designer" Click="About_Click"/>
         </MenuItem>
       </Menu>
+      <!-- Fixed (non-movable) command bar -->
+      <Border DockPanel.Dock="Top" Background="#F3F5F8" BorderBrush="#D7DCE3" BorderThickness="0,0,0,1">
+        <StackPanel Orientation="Horizontal" Margin="5,3" VerticalAlignment="Center">
+            <Button Style="{StaticResource IconBtn}" Click="Open_Click" Content="&#xE8E5;" ToolTip="Open template (.tpl)…"/>
+            <Menu Background="Transparent" VerticalAlignment="Center">
+                <MenuItem x:Name="miRecentBar" Padding="2,0" ToolTip="Recent templates"
+                          SubmenuOpened="RecentBar_Opened">
+                    <MenuItem.Header>
+                        <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="15" Text="&#xE81C;" Foreground="#33424F"/>
+                    </MenuItem.Header>
+                </MenuItem>
+            </Menu>
+            <Button Style="{StaticResource IconBtn}" Click="Save_Click" Content="&#xE74E;" ToolTip="Save (Ctrl+S)"/>
+            <Rectangle Width="1" Margin="5,3" Fill="#D0D7E0"/>
+            <Button Style="{StaticResource IconBtn}" Click="PreviewChanges_Click" Content="&#xE7C3;" ToolTip="Preview changes (diff vs disk)…"/>
+            <Button Style="{StaticResource IconBtn}" Click="Undo_Click" Content="&#xE7A7;" ToolTip="Undo (Ctrl+Z)"/>
+            <Rectangle Width="1" Margin="5,3" Fill="#D0D7E0"/>
+            <Button Style="{StaticResource IconBtn}" Click="Copy_Click" Content="&#xE8C8;" ToolTip="Copy control(s) (Ctrl+C)"/>
+            <Button Style="{StaticResource IconBtn}" Click="Paste_Click" Content="&#xE77F;" ToolTip="Paste (Ctrl+V)"/>
+            <Rectangle Width="1" Margin="5,3" Fill="#D0D7E0"/>
+            <Button Style="{StaticResource IconBtn}" Click="Validate_Click" Content="&#xE7BA;" ToolTip="Check for problems"/>
+            <Button Style="{StaticResource IconBtn}" Click="ToolbarFind_Click" Content="&#xE721;" ToolTip="Find / replace in source (Ctrl+F)"/>
+            <Button Style="{StaticResource IconBtn}" Click="Preview_Toggle" Content="&#xE7B3;" ToolTip="Toggle flow preview"/>
+        </StackPanel>
+      </Border>
       <ToolBarTray DockPanel.Dock="Top">
         <ToolBar Band="0" BandIndex="0">
             <TextBlock VerticalAlignment="Center" Margin="4,0">Part:</TextBlock>

@@ -121,6 +121,7 @@ public partial class MainWindow : Window
         miViewProblems.IsChecked = anchProblems.IsVisible;
         try { _defaultLayoutXml = SerializeLayout(); } catch { }
         LoadPrefs();
+        LoadRecent();
         Loaded += (_, _) => TryLoadSavedLayout();
         Closing += (_, _) => { SaveLayout(); SavePrefs(); };
     }
@@ -129,20 +130,110 @@ public partial class MainWindow : Window
     void Open_Click(object s, RoutedEventArgs e)
     {
         var dlg = new OpenFileDialog { Filter = "Clarion template (*.tpl;*.tpw)|*.tpl;*.tpw|All files|*.*" };
-        if (dlg.ShowDialog() != true) return;
+        if (dlg.ShowDialog() == true) OpenPath(dlg.FileName);
+    }
+
+    void OpenPath(string path)
+    {
+        if (!System.IO.File.Exists(path))
+        {
+            MessageBox.Show($"The file no longer exists:\n{path}", "Open",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            RemoveRecent(path);
+            return;
+        }
         try
         {
-            _doc = TplParser.Parse(dlg.FileName);
+            _doc = TplParser.Parse(path);
             _undo.Clear();
-            Title = "Clarion Template Designer — " + System.IO.Path.GetFileName(dlg.FileName);
+            Title = "Clarion Template Designer — " + System.IO.Path.GetFileName(path);
             PopulateParts(0, 0);
             SetSource(true);          // show the colour-coded source panel so it's never hidden
             int files = _doc.Files.Count, comps = _doc.Components.Count;
             status.Text = $"Loaded {_parts.Count} editable part(s) of {comps} component(s) across {files} file(s). "
                         + "Pick a Part and Tab; the colour-coded source is in the panel below (toggle with “View Source”).";
             Validate();
+            AddRecent(path);
         }
         catch (Exception ex) { MessageBox.Show("Parse failed:\n" + ex.Message); }
+    }
+
+    // ---------- recent files (MRU) ----------
+    readonly List<string> _recent = new();
+    string RecentPath => System.IO.Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "ClarionTemplateDesigner", "recent.txt");
+
+    void LoadRecent()
+    {
+        try
+        {
+            _recent.Clear();
+            if (System.IO.File.Exists(RecentPath))
+                foreach (var l in System.IO.File.ReadAllLines(RecentPath))
+                    if (l.Trim().Length > 0 && !_recent.Contains(l, StringComparer.OrdinalIgnoreCase)) _recent.Add(l.Trim());
+        }
+        catch { }
+    }
+
+    void SaveRecent()
+    {
+        try
+        {
+            var dir = System.IO.Path.GetDirectoryName(RecentPath);
+            if (dir != null) System.IO.Directory.CreateDirectory(dir);
+            System.IO.File.WriteAllLines(RecentPath, _recent.Take(12));
+        }
+        catch { }
+    }
+
+    void AddRecent(string path)
+    {
+        _recent.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
+        _recent.Insert(0, path);
+        while (_recent.Count > 12) _recent.RemoveAt(_recent.Count - 1);
+        SaveRecent();
+    }
+
+    void RemoveRecent(string path)
+    {
+        _recent.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
+        SaveRecent();
+    }
+
+    // Populate the Recent submenu (used by both the File menu and the toolbar) on open.
+    void RecentBar_Opened(object s, RoutedEventArgs e)
+    {
+        if (s is not MenuItem mi) return;
+        mi.Items.Clear();
+        if (_recent.Count == 0)
+        {
+            mi.Items.Add(new MenuItem { Header = "(no recent files)", IsEnabled = false });
+            return;
+        }
+        int n = 1;
+        foreach (var path in _recent)
+        {
+            var item = new MenuItem
+            {
+                Header = $"_{n++}  {System.IO.Path.GetFileName(path)}",
+                ToolTip = path
+            };
+            var captured = path;
+            item.Click += (_, _) => OpenPath(captured);
+            mi.Items.Add(item);
+        }
+        mi.Items.Add(new Separator());
+        var clear = new MenuItem { Header = "Clear recent files" };
+        clear.Click += (_, _) => { _recent.Clear(); SaveRecent(); };
+        mi.Items.Add(clear);
+    }
+
+    void ToolbarFind_Click(object s, RoutedEventArgs e)
+    {
+        if (!_srcOpen) SetSource(true);
+        srcEditor.Focus();
+        ApplicationCommands.Find.Execute(null, srcEditor.TextArea);   // opens AvalonEdit's search panel
     }
 
     // Tabs shown in the UI: deleted ones stay in _component.Tabs (so the writer can drop them) but are hidden.
