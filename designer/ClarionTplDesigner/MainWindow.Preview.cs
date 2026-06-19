@@ -152,7 +152,7 @@ public partial class MainWindow
     {
         if (_previewTrueLayout)
         {
-            var rows = new List<(double y, double x, FrameworkElement vis)>();
+            var rows = new List<(double y, double x, bool block, FrameworkElement vis)>();
             CollectRows(rows, children);
             FlushRows(host, rows);
             return;
@@ -183,8 +183,9 @@ public partial class MainWindow
         }
     }
 
-    // Collect (y, x, visual) for each control so they can be grouped into rows by Y (true-layout mode).
-    void CollectRows(List<(double y, double x, FrameworkElement vis)> rows, IEnumerable<TplElement> children)
+    // Collect (y, x, block, visual) for each control. "block" controls (boxes, option groups) get their
+    // own full-width row; only leaf controls are grouped side by side.
+    void CollectRows(List<(double y, double x, bool block, FrameworkElement vis)> rows, IEnumerable<TplElement> children)
     {
         StackPanel? optionGroup = null;
         foreach (var el in children)
@@ -204,24 +205,26 @@ public partial class MainWindow
             double y = el.HasY ? el.Y : 0, x = el.HasX ? el.X : 0;
             if (el.Kind == TplKind.Prompt && u.StartsWith("OPTION"))
             {
-                rows.Add((y, x, Selectable(MakeOptionGroup(el, out optionGroup), el)));
+                rows.Add((y, x, true, Selectable(MakeOptionGroup(el, out optionGroup), el)));
                 continue;
             }
             var content = BuildContent(el, u);
-            if (content != null) rows.Add((y, x, Selectable(content, el)));
+            if (content != null) rows.Add((y, x, el.Kind == TplKind.Boxed, Selectable(content, el)));
         }
     }
 
-    // Group collected controls whose Y is within a few units onto one horizontal row, ordered by X.
-    void FlushRows(Panel host, List<(double y, double x, FrameworkElement vis)> rows)
+    // Group collected leaf controls whose Y is within a few units onto one horizontal row (ordered by X);
+    // boxes/option groups always take their own row.
+    void FlushRows(Panel host, List<(double y, double x, bool block, FrameworkElement vis)> rows)
     {
         var sorted = rows.OrderBy(r => r.y).ToList();
         int i = 0;
         while (i < sorted.Count)
         {
+            if (sorted[i].block) { host.Children.Add(sorted[i].vis); i++; continue; }
             double y0 = sorted[i].y;
             var group = new List<(double x, FrameworkElement vis)>();
-            while (i < sorted.Count && sorted[i].y - y0 <= 6) { group.Add((sorted[i].x, sorted[i].vis)); i++; }
+            while (i < sorted.Count && !sorted[i].block && sorted[i].y - y0 <= 6) { group.Add((sorted[i].x, sorted[i].vis)); i++; }
             if (group.Count == 1) { host.Children.Add(group[0].vis); continue; }
             group.Sort((a, b) => a.x.CompareTo(b.x));
             var row = new StackPanel { Orientation = Orientation.Horizontal };
