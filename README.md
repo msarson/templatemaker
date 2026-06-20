@@ -49,6 +49,8 @@ templates/                      # ready-to-register Clarion templates
     myPie.tpl                   #     global helper + procedure extension
   myFontChanger/                #   global + per-list font picker (see below)
     myFontChanger.tpl
+  myBackground/                 #   global default + per-window background color/image (see below)
+    myBackground.tpl
 designer/ClarionTplDesigner/    # WPF visual designer for the prompt UI (see below)
 installer/                      # builds the installer + a portable single-file exe
 README.md
@@ -146,6 +148,25 @@ It adds two helpers to the program module (`myFontApply`, `myFontChange`) and in
 The extension has a **General** tab (default font, size, INI name) and an **Instructions** tab.
 Register it, add **myFontChanger - global per-list font picker** under Global → Extensions, set the
 default font + INI name, generate and build.
+
+### `templates/myBackground/` — global default + per-window background color / image
+A single global (APPLICATION-scope) ABC extension, no per-procedure setup:
+- Gives **every window** a **global default background** — a solid **color** and/or an **image** — applied
+  automatically at window open.
+- Press **Ctrl+Shift+B** on any window for a small chooser: **Background Color…** (color dialog),
+  **Background Image…** (file dialog, stretched to fill), or **Use Default** (drop this window's
+  personal setting and revert to the global default).
+- Saves each window's choice in **its own INI section** (`[Procedure]`, with `Mode`/`Color`/`Image`) and
+  re-applies it on reopen — a stored personal background **overrides** the global default.
+
+It adds two helpers to the program module (`myBackApply`, `myBackChoose`) and injects into
+`WindowManager.TakeWindowEvent` (apply the background + arm the hotkey on `EVENT:OpenWindow`; pop the
+chooser on `EVENT:AlertKey`). At run time a solid color is set with `0{PROP:Color}` and an image with
+`0{PROP:WallPaper}` (with `PROP:Tiled`/`PROP:Centered` off so it stretches to fill); uses `COLORDIALOG`,
+`FILEDIALOG`, `GETINI`/`PUTINI`, and an armed `Ctrl+Shift+B` alert. The extension has a **General** tab
+(default color, default image, INI name, hotkey toggle) and an **Instructions** tab. Register it, add
+**myBackground - per-window background color / image** under Global → Extensions, set your defaults +
+INI name, generate and build.
 
 ## Install
 
