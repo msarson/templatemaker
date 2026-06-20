@@ -133,6 +133,7 @@ public partial class MainWindow : Window
     bool _srcOpen;                    // source panel visible
     bool _srcDirty, _loadingSrc;      // editor has unapplied edits / suppress TextChanged while loading
     bool _srcLive;                    // show the would-be-saved source (all pending edits) read-only
+    int _srcViewFile = -1;            // >=0: panel is showing this file read-only (a #GROUP source for a foreign control), not the part's file
     IHighlightingDefinition? _clarionHl;
 
     // panel layout persistence
@@ -1497,7 +1498,7 @@ public partial class MainWindow : Window
     {
         _srcOpen = anchSource.IsVisible;
         miViewSource.IsChecked = _srcOpen;
-        if (_srcOpen) { LoadSource(); ScrollSourceTo(_sel); }
+        if (_srcOpen) { LoadSource(); SyncSourceToSelection(); }
     }
 
     // ---------- panel layout persistence ----------
@@ -1732,7 +1733,7 @@ public partial class MainWindow : Window
     // Render the file as it WOULD be saved (all pending edits), without touching disk.
     void RefreshLiveSource()
     {
-        if (!_srcOpen || !_srcLive || _doc == null) return;
+        if (!_srcOpen || !_srcLive || _doc == null || _srcViewFile >= 0) return;   // don't clobber a #GROUP (foreign) view
         int fi = _component?.FileIndex ?? 0;
         _loadingSrc = true;
         try { srcEditor.Text = TplWriter.PreviewFile(_doc, fi); }
@@ -1796,6 +1797,7 @@ public partial class MainWindow : Window
     void LoadSource()
     {
         if (!_srcOpen) return;
+        _srcViewFile = -1;                       // loading the part's own source leaves any #GROUP (foreign) view
         if (_srcLive) { RefreshLiveSource(); return; }
         var f = CurrentFile();
         srcEditor.SyntaxHighlighting = ClarionHighlighting();
@@ -1806,6 +1808,7 @@ public partial class MainWindow : Window
             else { try { srcEditor.Text = System.IO.File.ReadAllText(f.Path); } catch { srcEditor.Text = string.Join(f.Newline, f.Lines); } }
         }
         finally { _loadingSrc = false; }
+        SetSrcChrome(readOnly: false);           // the part's source is editable again
         _srcDirty = false; btnApplySrc.IsEnabled = false;
         srcHeader.Text = f == null ? "SOURCE" : $"SOURCE — {System.IO.Path.GetFileName(f.Path)}";
         RefreshMinimap();
@@ -1884,12 +1887,54 @@ public partial class MainWindow : Window
         srcEditor.TextArea.TextView.InvalidateLayer(KnownLayer.Selection);
     }
 
-    // The element's line in the text currently shown: pending line in Live mode, else its parsed line.
-    // Foreign (#INSERT'd) content lives in another file, so its LineIndex doesn't apply to the displayed
-    // source — anchor to the #INSERT line that pulled it into this file instead.
-    int LineOf(TplElement el) =>
-        el.Foreign ? el.AnchorLine
-        : _srcLive && _pendingMap != null && _pendingMap.TryGetValue(el, out var ln) ? ln : el.LineIndex;
+    // The element's line in the text currently shown. Foreign (#INSERT'd) content lives in another file:
+    // when the panel is showing that file its real LineIndex applies; otherwise anchor to the #INSERT line.
+    int LineOf(TplElement el)
+    {
+        if (el.Foreign) return _srcViewFile == el.SrcFileIndex ? el.LineIndex : el.AnchorLine;
+        return _srcLive && _pendingMap != null && _pendingMap.TryGetValue(el, out var ln) ? ln : el.LineIndex;
+    }
+
+    // Point the source panel at whatever defines the current selection. A foreign control's source is in
+    // its #GROUP's own file, so the editor follows the selection across files (read-only); native controls
+    // (and an empty selection) show the part's own editable source.
+    void SyncSourceToSelection()
+    {
+        if (!_srcOpen) return;
+        if (_sel is { Foreign: true } && _doc != null && _sel.SrcFileIndex >= 0 && _sel.SrcFileIndex < _doc.Files.Count)
+        {
+            ShowForeignSource(_sel);
+            return;
+        }
+        if (_srcViewFile >= 0) { _srcViewFile = -1; LoadSource(); }   // leaving a #GROUP file -> restore the part source
+        ScrollSourceTo(_sel);
+    }
+
+    // Load a foreign control's defining file read-only and jump to the line that declares it.
+    void ShowForeignSource(TplElement el)
+    {
+        if (_doc == null || el.SrcFileIndex < 0 || el.SrcFileIndex >= _doc.Files.Count) return;
+        var f = _doc.Files[el.SrcFileIndex];
+        if (_srcViewFile != el.SrcFileIndex)        // already on this file? just re-scroll
+        {
+            srcEditor.SyntaxHighlighting = ClarionHighlighting();
+            _loadingSrc = true;
+            try { srcEditor.Text = string.Join(f.Newline, f.Lines); }
+            finally { _loadingSrc = false; }
+            _srcViewFile = el.SrcFileIndex;
+            _srcDirty = false; btnApplySrc.IsEnabled = false;
+            SetSrcChrome(readOnly: true);           // this file isn't the template being edited
+            srcHeader.Text = $"SOURCE — {System.IO.Path.GetFileName(f.Path)}  •  read-only (declared here, pulled in via #INSERT)";
+            RefreshMinimap();
+        }
+        ScrollSourceTo(el);                          // LineOf -> el.LineIndex while _srcViewFile == its file
+    }
+
+    void SetSrcChrome(bool readOnly)
+    {
+        srcEditor.IsReadOnly = readOnly;
+        srcEditor.Background = readOnly ? new SolidColorBrush(Color.FromRgb(0xF1, 0xF3, 0xF6)) : Brushes.White;
+    }
 
     // Map model elements to their line numbers in the live/pending source (which shifts on insert/move/delete).
     void RebuildPendingMap()
@@ -3539,7 +3584,7 @@ public partial class MainWindow : Window
         _editGuard = false;            // next X/Y/W/H or text edit starts a fresh undo entry
         RefreshSelectionVisual();
         PopulateProps(_sel);
-        ScrollSourceTo(_sel);
+        SyncSourceToSelection();       // follow the selection to its defining file (foreign content lives elsewhere)
         HighlightOutline(_sel);
     }
 
