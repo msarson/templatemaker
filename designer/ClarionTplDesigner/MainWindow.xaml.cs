@@ -1346,6 +1346,17 @@ public partial class MainWindow : Window
     {
         if (el == null) return "";
         if (el.Inserted) return "(new control — written to the template on Save)";
+        // Foreign content's real source is in the #GROUP's own file — show it (read-only) from there.
+        if (el.Foreign && _doc != null && el.SrcFileIndex >= 0 && el.SrcFileIndex < _doc.Files.Count)
+        {
+            var gf = _doc.Files[el.SrcFileIndex];
+            if (el.LineIndex < 0 || el.LineIndex >= gf.Lines.Length) return "";
+            string fs = gf.Lines[el.LineIndex].Trim();
+            if (el.EndLineIndex > el.LineIndex)
+                fs += $"\n…\n{gf.Lines[Math.Min(el.EndLineIndex, gf.Lines.Length - 1)].Trim()}"
+                    + $"   ({el.EndLineIndex - el.LineIndex + 1} lines)";
+            return $"from {System.IO.Path.GetFileName(gf.Path)} via #INSERT (read-only):\n{fs}";
+        }
         var f = CurrentFile();
         if (f == null || el.LineIndex < 0 || el.LineIndex >= f.Lines.Length) return "";
         string s = TplWriter.PreviewLine(f.Lines[el.LineIndex], el).Trim();   // reflect pending AT/PROP edits
@@ -1874,8 +1885,11 @@ public partial class MainWindow : Window
     }
 
     // The element's line in the text currently shown: pending line in Live mode, else its parsed line.
+    // Foreign (#INSERT'd) content lives in another file, so its LineIndex doesn't apply to the displayed
+    // source — anchor to the #INSERT line that pulled it into this file instead.
     int LineOf(TplElement el) =>
-        _srcLive && _pendingMap != null && _pendingMap.TryGetValue(el, out var ln) ? ln : el.LineIndex;
+        el.Foreign ? el.AnchorLine
+        : _srcLive && _pendingMap != null && _pendingMap.TryGetValue(el, out var ln) ? ln : el.LineIndex;
 
     // Map model elements to their line numbers in the live/pending source (which shifts on insert/move/delete).
     void RebuildPendingMap()
@@ -1900,6 +1914,7 @@ public partial class MainWindow : Window
     static void FlattenLive(TplElement e, List<TplElement> o)
     {
         if (e.Deleted) return;                       // deleted controls aren't in the pending text
+        if (e.Foreign) return;                       // #INSERT'd content isn't in this file's text, so it has no pending line
         o.Add(e);
         foreach (var c in e.Children) FlattenLive(c, o);
     }
