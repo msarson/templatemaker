@@ -539,10 +539,11 @@ public partial class MainWindow : Window
     {
         if (_component == null) return;
         var lts = LiveTabs();
+        int keep = select >= 0 ? select : cmbTabs.SelectedIndex;   // capture BEFORE the ItemsSource swap clears it
         cmbTabs.ItemsSource = lts.Select(t => t.Title).ToList();
         if (lts.Count == 0) { cmbTabs.SelectedIndex = -1; return; }
-        int idx = select >= 0 ? select : cmbTabs.SelectedIndex;
-        cmbTabs.SelectedIndex = Math.Min(Math.Max(idx, 0), lts.Count - 1);
+        // ForceSelect so Tab_Changed always re-fires (rebuilds _tab + re-renders) even when the index is unchanged.
+        ForceSelect(cmbTabs, Math.Min(Math.Max(keep, 0), lts.Count - 1));
     }
 
     void PopulateParts(int partIdx, int tabIdx)
@@ -1414,6 +1415,7 @@ public partial class MainWindow : Window
     void Restore(Snapshot snap)
     {
         if (_doc == null) return;
+        int partIdx = cmbParts.SelectedIndex, tabIdx = cmbTabs.SelectedIndex;   // keep the user where they were
         for (int i = 0; i < _doc.Components.Count && i < snap.Tabs.Count; i++)
         {
             _doc.Components[i].Tabs.Clear();
@@ -1428,13 +1430,9 @@ public partial class MainWindow : Window
         foreach (var (v, d) in snap.Guides) _guides.Add(new Guide { Vertical = v, Dlu = d });
 
         _sel = null;
-        if (_component != null)
-        {
-            var lts = LiveTabs(); int ti = cmbTabs.SelectedIndex;
-            _tab = ti >= 0 && ti < lts.Count ? lts[ti] : (lts.Count > 0 ? lts[0] : null);
-        }
-        Render();
-        Select(null);
+        // Rebuild the part/tab selectors from the restored model: an undone tab add/delete changes the
+        // tab LIST, not just its contents, so the dropdowns, canvas and panels must all re-sync.
+        PopulateParts(partIdx, tabIdx);
     }
 
     // Drag/resize gestures: capture once at the start, commit only if something actually changed.
@@ -1961,6 +1959,8 @@ public partial class MainWindow : Window
     {
         if (!_ready) return;
         PopulateOutline();            // keep the structure tree in step with the model
+        if (miViewProblems?.IsChecked == true) Validate();        // keep the Problems panel in step (only when open)
+        if (miViewSymbols?.IsChecked == true) PopulateSymbols();  // keep the Symbols browser in step (only when open)
         RefreshLiveSource();          // keep the live source in step with the model
         canvas.Children.Clear();
         _chips.Clear();
@@ -3245,7 +3245,7 @@ public partial class MainWindow : Window
     void Problems_Toggle(object s, RoutedEventArgs e)
     {
         if (anchProblems == null) return;
-        if (miViewProblems.IsChecked) { anchProblems.Show(); anchProblems.IsActive = true; }
+        if (miViewProblems.IsChecked) { anchProblems.Show(); anchProblems.IsActive = true; Validate(); }   // refresh on open
         else anchProblems.Hide();
     }
 
