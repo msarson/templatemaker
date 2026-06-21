@@ -147,5 +147,34 @@ per-procedure, project files, export lists, custom embeds).
 - **Match block terminators**: `#ENDIF`/`#END`, `#ENDFOR`/`#END`, `#ENDAT`, `#ENDTAB`, `#ENDSHEET`,
   `#ENDBOXED`, `#ENDBUTTON`, `#ENDENABLE`, `#ENDWITH`, `#ENDCONTEXT`. (`#END` closes most blocks; be consistent.)
 
+### Generating Clarion source — pitfalls that compile-fail (learned the hard way)
+
+- **A `MODULE('dll')` external prototype MUST live in the GLOBAL map, never a local (procedure) `MAP`.**
+  A local `MAP` inside a procedure body (e.g. emitted into `%ProgramProcedures`) does **not** accept a
+  `MODULE('kernel32') … END` external declaration — the compiler stops recognizing it as a prototype and
+  reads the parameter types as attributes. Symptom: `Unknown attribute: LONG` / `Unknown attribute: CSTRING`
+  on the prototype line, plus `Expected: <ID> … END INCLUDE OMIT …`. Put Windows/DLL API prototypes in
+  `#AT(%GlobalMap)`.
+- **A `MAP` prototype takes parameter TYPES, not names.** `MyApi(LONG hWnd, *CSTRING text)` fails with
+  `Unknown attribute: text`; write `MyApi(LONG,*CSTRING)`. Keep each prototype on **one line** — very long
+  prototypes also mis-parse. (Names are only valid in the procedure *definition*, not the prototype.)
+- **Declaring an API the ABC runtime already declares (e.g. `CloseHandle`, `WaitForSingleObject`)** → give it
+  a **unique Clarion label + `NAME('RealExport')`**: `myX_CloseHandle(LONG),BOOL,PASCAL,PROC,NAME('CloseHandle')`.
+  Avoids a duplicate-label clash while still binding to the real export. For pointers, the simplest portable
+  mapping is **all-`LONG` params and pass `ADDRESS(x)` / strings by `ADDRESS()`** at the call — no `*type`, no `RAW`.
+- **Load an image file into an IMAGE control at run time with `feq{PROP:Text} = filename`** (clear with `= ''`).
+  `PROP:Picture` is the LISTBOX-column picture token, **not** the image-file property — don't use it here.
+- **Building a command line / quoted string in emitted code:** `<34>` is a double quote `"`, `<39>` is a
+  single quote `'`. Windows argument quoting needs **double** quotes → `<34>`. (`<39>` would pass literal apostrophes.)
+- **A developer-entered value emitted verbatim is fragile.** If a prompt feeds straight into code
+  (`x = %MyValue`), a plain string like `https://a.com/b` comes out unquoted and the `.`/`/` parse as
+  field-access/operators (`Unknown identifier: …`, `Field not found: …`). Give the developer an explicit
+  **literal-vs-expression** toggle: literal → emit auto-quoted `'%MyValue'`; variable/expression → emit
+  `%MyValue` verbatim. See `reference/patterns.md` P12–P13.
+- **A `PROCEDURE`/`CONTROL` extension that emits global helpers (`%GlobalMap`/`%ProgramProcedures`) duplicates
+  them for every instance** — add it to two procedures and you get `Procedure … duplicated`. Put shared
+  helpers in a separate `APPLICATION`-scope extension (the `myPie`/`myPieGlobal` split, `REQ()`-linked) so
+  they emit once. Self-contained helpers in the procedure extension are fine **only** for single-use templates.
+
 When in doubt about a directive, attribute, or built-in symbol, open `reference/directives.md`, or grep
 the shipped corpus for a real use before writing it.

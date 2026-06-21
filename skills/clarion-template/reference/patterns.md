@@ -303,3 +303,52 @@ defining module must see a BARE prototype (its own `MAP` `INCLUDE`s a bare `.inc
 must reference it WRAPPED in `MODULE('myFuncs.clw')`, plus `#PROJECT('myFuncs.clw')` to compile it. This
 works but is fiddly (MEMBER()/MODULE() matching) — prefer the program-module approach above unless you
 have a reason not to.
+
+## P12 — Calling a Windows / external DLL API (e.g. shelling a command hidden)
+
+To call a DLL export (kernel32, urlmon, user32, …) the prototype goes in a `MODULE('dll')` block. Three rules,
+each learned from a compile failure:
+
+1. **The `MODULE('dll')` block MUST be in the GLOBAL map.** A local (procedure) `MAP` — e.g. one you emit
+   inside a helper body in `%ProgramProcedures` — does NOT accept a `MODULE()` external declaration; the
+   compiler reads the prototype's parameter types as attributes (`Unknown attribute: LONG`, `Unknown
+   attribute: CSTRING`, `Expected: <ID> … END INCLUDE OMIT …`). Emit it via `#AT(%GlobalMap)`.
+2. **Type-only parameters, one line each.** Names break it (`Unknown attribute: <name>`); so do over-long
+   lines. The most portable mapping is **all `LONG`**, passing pointers as `ADDRESS(x)` at the call (no
+   `*type`, no `RAW`).
+3. **Unique label + `NAME()` to dodge runtime clashes.** The ABC runtime already prototypes common APIs
+   (`CloseHandle`, `WaitForSingleObject`, …). Prefix yours and bind via `NAME()`.
+
+```
+#AT(%GlobalMap),WHERE(%MyDisable=0)
+  MODULE('kernel32')
+my_CreateProcess(LONG,LONG,LONG,LONG,LONG,ULONG,LONG,LONG,LONG,LONG),LONG,PASCAL,PROC,NAME('CreateProcessA')
+my_WaitObject(LONG,ULONG),LONG,PASCAL,NAME('WaitForSingleObject')
+my_CloseHandle(LONG),LONG,PASCAL,PROC,NAME('CloseHandle')
+  END
+#ENDAT
+```
+Call site (string + GROUPs passed by `ADDRESS()`): `my_CreateProcess(0, ADDRESS(loc:Cmd), 0,0,0, CREATE_NO_WINDOW, 0,0, ADDRESS(si), ADDRESS(pi))`.
+**Simplest of all if a console flash is acceptable:** skip the API entirely and use built-in `RUN('cmd …', 1)`
+(`1` = wait) — no prototypes, no structs, always compiles. Good fallback to offer in a comment.
+Reference: this is the `myQR` template (curl download, hidden+synchronous via `CreateProcessA`).
+
+## P13 — Emitting a developer-entered value (literal vs variable/expression)
+
+When a prompt value is dropped straight into generated code (`x = %MyValue`), a plain literal is a trap: the
+user types `https://a.com/b` and you emit `x = https://a.com/b`, where Clarion parses the `.`/`/` as
+field-access/operators → `Unknown identifier: …`, `Field not found: …`. Don't rely on the user adding quotes.
+
+Give an explicit mode with a `CHECK`, default to literal so the obvious case just works:
+```
+#PROMPT('&Value:',@s255),%MyValue,DEFAULT('https://example.com')
+#PROMPT('Value is a varia&ble / expression (untick = literal text)',CHECK),%MyValueIsVar,DEFAULT(0)
+…
+#IF(%MyValueIsVar)
+  loc:V = %MyValue                #! a variable/expression — emitted verbatim, read live
+#ELSE
+  loc:V = '%MyValue'              #! a literal — auto-quoted
+#ENDIF
+```
+Caveat to document: a literal containing a `'` needs it doubled (`''`) or use variable mode — the template
+can't safely escape arbitrary embedded quotes at generate time.
