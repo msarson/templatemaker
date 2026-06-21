@@ -1471,18 +1471,44 @@ public partial class MainWindow : Window
     }
 
     // ---------- source panel (AvalonEdit) ----------
+    // Highlighting derived from the Clarion-Extension TextMate grammar (clarion-template.tmLanguage.json),
+    // grouped into a handful of colours: structure sections, control flow, prompt-UI, code generation,
+    // symbol/data ops, plus operators, numbers and %symbols (also inside strings).
     const string ClarionXshd = @"<?xml version='1.0'?>
 <SyntaxDefinition name='ClarionTemplate' xmlns='http://icsharpcode.net/sharpdevelop/syntaxdefinition/2008'>
   <Color name='Comment'   foreground='#208020' />
-  <Color name='Directive' foreground='#0A66C2' fontWeight='bold' />
-  <Color name='Symbol'    foreground='#0E7C6B' />
   <Color name='Str'       foreground='#B26A00' />
+  <Color name='Symbol'    foreground='#0E7C6B' />
+  <Color name='Section'   foreground='#6F42C1' fontWeight='bold' />
+  <Color name='Flow'      foreground='#CF222E' fontWeight='bold' />
+  <Color name='Prompt'    foreground='#0A66C2' fontWeight='bold' />
+  <Color name='Gen'       foreground='#8250DF' />
+  <Color name='SymOp'     foreground='#9A6700' />
+  <Color name='Directive' foreground='#57606A' />
+  <Color name='Operator'  foreground='#6E7781' />
+  <Color name='Number'    foreground='#0550AE' />
   <RuleSet ignoreCase='true'>
-    <Span color='Comment' begin='#!' />
-    <Span color='Str'><Begin>'</Begin><End>'</End></Span>
+    <Span color='Comment' begin='\#!' />
+    <Span color='Str'>
+      <Begin>'</Begin>
+      <End>'</End>
+      <RuleSet>
+        <Rule color='Symbol'>%[A-Za-z][A-Za-z0-9_:.]*</Rule>
+      </RuleSet>
+    </Span>
     <Span color='Comment' begin='!' />
+    <Rule color='Section'>\#(TEMPLATE|APPLICATION|PROGRAM|MODULE|PROCEDURE|GROUP|CODE|CONTROL|EXTENSION|UTILITY|CLASS)\b</Rule>
+    <Rule color='Flow'>\#(IF|ELSIF|ELSE|ENDIF|CASE|OF|OROF|ENDCASE|FOR|ENDFOR|LOOP|ENDLOOP|WHILE|ENDWHILE|BREAK|CYCLE)\b</Rule>
+    <Rule color='Prompt'>\#(SHEET|ENDSHEET|TAB|ENDTAB|PROMPT|DISPLAY|FIELD|BUTTON|ENDBUTTON|BOXED|ENDBOXED|ENABLE|ENDENABLE|PREPARE|ENDPREPARE|IMAGE)\b</Rule>
+    <Rule color='Gen'>\#(GENERATE|AT|ENDAT|EMBED|INSERT|CALL|INVOKE|RETURN|PREEMBED|POSTEMBED|EMPTYEMBED)\b</Rule>
+    <Rule color='SymOp'>\#(DECLARE|EQUATE|SET|CLEAR|ADD|DELETE|DELETEALL|FREE|PURGE|FIX|FIND|POP|SELECT|DEFINE|EXPAND)\b</Rule>
     <Rule color='Directive'>\#[A-Za-z][A-Za-z0-9_]*</Rule>
-    <Rule color='Symbol'>%[A-Za-z][A-Za-z0-9_:]*</Rule>
+    <Rule color='Symbol'>%[A-Za-z][A-Za-z0-9_:.]*</Rule>
+    <Keywords color='Operator'>
+      <Word>AND</Word><Word>OR</Word><Word>NOT</Word><Word>XOR</Word>
+    </Keywords>
+    <Rule color='Operator'>&lt;&gt;|&gt;=|&lt;=|=|&gt;|&lt;|&amp;</Rule>
+    <Rule color='Number'>\b[0-9]+\b</Rule>
   </RuleSet>
 </SyntaxDefinition>";
 
