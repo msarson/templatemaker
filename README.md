@@ -226,6 +226,13 @@ correct `PROP:FontStyle` flags + `PROP:FontName`/`PROP:FontColor`) — while the
 **read-only** (Clarion governs the prompt-sheet face). Switching between open documents restores each one's
 part **and** tab.
 
+**Reusable prompt groups & UX (v2.9).** A `#SHEET` that pulls in shared prompts with **`#INSERT(%group)`**
+now **resolves the `#GROUP(%group)`** (even when it lives in another `#INCLUDE`d file) and lays its prompts
+out inline, so you see the complete sheet. Inlined controls are **read-only** (never written back — they
+belong to the group's source) and **click-to-navigate** to the host `#INSERT` line. The **template/document
+tabs sit above the toolbars** for a cleaner top strip, and **opening a template refreshes** the canvas
+immediately.
+
 To package everything (designer **+** templates **+** skill **+** agent) into one deliverable — .NET is
 bundled in, so nothing needs pre-installing on the target:
 
