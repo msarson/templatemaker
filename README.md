@@ -255,6 +255,11 @@ belong to the group's source) and **click-to-navigate** to the host `#INSERT` li
 tabs sit above the toolbars** for a cleaner top strip, and **opening a template refreshes** the canvas
 immediately.
 
+**Auto-flow accuracy (v2.11).** When controls have no explicit `AT`, the canvas now lays them out the way
+AppGen will: a side-label prompt **reserves its label column** (so the label no longer underflows off the
+left into the margin), and an `#IMAGE` **reserves its real footprint** (its intrinsic pixel size, scaled to
+fit) so following controls flow *below* it instead of being drawn underneath.
+
 To package everything (designer **+** templates **+** skill **+** agent) into one deliverable — .NET is
 bundled in, so nothing needs pre-installing on the target:
 
