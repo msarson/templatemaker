@@ -25,17 +25,28 @@ public class TplElement
     public bool Req;               // ,REQ attribute (entry must be filled)
     public string DefaultExpr = "";// literal inside DEFAULT(...), e.g. '39', %Sym, 'AJE'
     public string Where = "";      // WHERE(...) condition (tab visibility), without the WHERE() wrapper
+    public bool Section;           // #BOXED,SECTION: child AT() is relative to THIS box (else tab-absolute)
 
     // AT(x,y,w,h) - which slots were present, and their DLU values.
     public bool HasAt, HasX, HasY, HasW, HasH;
     public int X, Y, W, H;
 
+    // PROMPTAT(x,y,w,h) - the LABEL position for a #PROMPT, independent of AT (which is the entry control).
+    // Clarion draws the label here, NOT inside the AT rectangle.
+    public bool HasPromptAt, HasPX, HasPY, HasPW, HasPH;
+    public int PX, PY, PW, PH;
+    public double PLX, PLY, PLW, PLH;   // computed label rect (DLU, tab-relative)
+
     // PROP(...) styling
     public string FontName = "";
     public int FontSize;
     public uint? FontColor;         // COLORREF 0x00BBGGRR
-    public int FontStyle;           // raw PROP(PROP:FontStyle,N); 0 = unset
+    public int FontStyle;           // raw PROP(PROP:FontStyle,N); 0 = unset. Weight (low bits, 400/700) + flags.
     public bool Bold;
+    // Clarion FONT style flag bits: italic 0x1000, underline 0x2000, strikeout 0x4000 (added to the weight).
+    public bool Italic    => (FontStyle & 0x1000) != 0;
+    public bool Underline => (FontStyle & 0x2000) != 0;
+    public bool Strikeout => (FontStyle & 0x4000) != 0;
     public bool FontDirty;          // font/colour/size/style edited -> rewrite its PROP(...) on save
 
     // computed absolute layout (DLU, tab-relative) used by the designer
@@ -53,9 +64,11 @@ public class TplElement
         {
             Kind = Kind, LineIndex = LineIndex, EndLineIndex = EndLineIndex,
             Deleted = Deleted, Inserted = Inserted, Moved = Moved, MoveAnchorLine = MoveAnchorLine,
-            Title = Title, Symbol = Symbol, PromptType = PromptType, Req = Req, DefaultExpr = DefaultExpr, Where = Where,
+            Title = Title, Symbol = Symbol, PromptType = PromptType, Req = Req, DefaultExpr = DefaultExpr, Where = Where, Section = Section,
             HasAt = HasAt, HasX = HasX, HasY = HasY, HasW = HasW, HasH = HasH,
             X = X, Y = Y, W = W, H = H,
+            HasPromptAt = HasPromptAt, HasPX = HasPX, HasPY = HasPY, HasPW = HasPW, HasPH = HasPH,
+            PX = PX, PY = PY, PW = PW, PH = PH, PLX = PLX, PLY = PLY, PLW = PLW, PLH = PLH,
             FontName = FontName, FontSize = FontSize, FontColor = FontColor, FontStyle = FontStyle,
             Bold = Bold, FontDirty = FontDirty,
             LX = LX, LY = LY, LW = LW, LH = LH, Dirty = Dirty, HasZ = HasZ, Z = Z,
@@ -278,9 +291,31 @@ public static class TplParser
         var wh = Regex.Match(line, @"\bWHERE\(\s*(.*?)\s*\)\s*(?:,|$)", RegexOptions.IgnoreCase);
         if (wh.Success) e.Where = wh.Groups[1].Value.Trim();
 
+        if (kind == TplKind.Boxed && Regex.IsMatch(line, @",\s*SECTION\b", RegexOptions.IgnoreCase))
+            e.Section = true;
+
         ParseAt(line, e);
+        if (kind == TplKind.Prompt) ParsePromptAt(line, e);
         ParseProps(line, e);
         return e;
+    }
+
+    // PROMPTAT(x,y,w,h) - the label position. \bAT\( does NOT match inside PROMPTAT( (no word boundary), so
+    // ParseAt/ApplyAt never touch this; we parse it separately here.
+    static void ParsePromptAt(string line, TplElement e)
+    {
+        var m = Regex.Match(line, @"\bPROMPTAT\(([^)]*)\)", RegexOptions.IgnoreCase);
+        if (!m.Success) return;
+        e.HasPromptAt = true;
+        var parts = m.Groups[1].Value.Split(',');
+        var has = new bool[4]; var val = new int[4];
+        for (int k = 0; k < 4 && k < parts.Length; k++)
+        {
+            var p = parts[k].Trim();
+            if (p.Length > 0 && int.TryParse(p, out var v)) { has[k] = true; val[k] = v; }
+        }
+        e.HasPX = has[0]; e.HasPY = has[1]; e.HasPW = has[2]; e.HasPH = has[3];
+        e.PX = val[0]; e.PY = val[1]; e.PW = val[2]; e.PH = val[3];
     }
 
     static void ParseAt(string line, TplElement e)
@@ -306,10 +341,14 @@ public static class TplParser
             e.FontColor = c;
         var fs = Regex.Match(line, @"PROP\(\s*PROP:FontSize\s*,\s*(\d+)\s*\)", RegexOptions.IgnoreCase);
         if (fs.Success) e.FontSize = int.Parse(fs.Groups[1].Value);
-        var fn = Regex.Match(line, @"PROP\(\s*PROP:Font\s*,\s*'([^']*)'\s*\)", RegexOptions.IgnoreCase);
+        // The face name is PROP:FontName (PROP:Font is the 4-value array). Accept the legacy bare PROP:Font
+        // too so older templates still load; it is rewritten to PROP:FontName on save.
+        var fn = Regex.Match(line, @"PROP\(\s*PROP:Font(?:Name)?\s*,\s*'([^']*)'\s*\)", RegexOptions.IgnoreCase);
         if (fn.Success) e.FontName = fn.Groups[1].Value;
+        // Legacy bare PROP:Font (wrong property for the face): flag it so a save rewrites it to PROP:FontName.
+        if (Regex.IsMatch(line, @"PROP\(\s*PROP:Font\s*,\s*'", RegexOptions.IgnoreCase)) e.FontDirty = true;
         var fst = Regex.Match(line, @"PROP\(\s*PROP:FontStyle\s*,\s*(\d+)\s*\)", RegexOptions.IgnoreCase);
-        if (fst.Success) { e.FontStyle = int.Parse(fst.Groups[1].Value); e.Bold = e.FontStyle >= 600; }
+        if (fst.Success) { e.FontStyle = int.Parse(fst.Groups[1].Value); e.Bold = (e.FontStyle & 0xFFF) >= 600; }
     }
 }
 
@@ -351,6 +390,21 @@ public static class TplWriter
     {
         var lines = (string[])file.Lines.Clone();
 
+        // The designer positions a box's children with BOX-RELATIVE coordinates, but Clarion only honours
+        // that when the box carries SECTION; without it AppGen reads each child AT as tab-absolute and they
+        // pile up at the window top. So any box that holds a positioned child must be a SECTION box. Set the
+        // flag (so GenLine/EmitUnit emit it for new/moved boxes) and patch the open line of existing boxes
+        // directly here — without touching Dirty, so this is safe to run during a read-only preview too.
+        foreach (var tab in docTabs)
+            foreach (var e in Flatten(tab))
+                if (e.Kind == TplKind.Boxed && !e.Deleted
+                    && e.Children.Any(c => !c.Deleted && c.IsPositionable && (c.HasX || c.HasY)))
+                {
+                    e.Section = true;
+                    if (!e.Inserted && !e.Moved && e.LineIndex >= 0 && e.LineIndex < lines.Length)
+                        lines[e.LineIndex] = EnsureSection(lines[e.LineIndex], e);
+                }
+
         // Lines to remove: deleted elements (containers span to #END...) and relocated controls' old line.
         var drop = new HashSet<int>();
         foreach (var tab in docTabs)
@@ -375,7 +429,9 @@ public static class TplWriter
                 {
                     // edit the clone in place; a control inside a moved box is re-emitted from these lines
                     if (e.Dirty) lines[e.LineIndex] = ApplyAt(lines[e.LineIndex], e);
+                    if (e.Dirty) lines[e.LineIndex] = ApplyPromptAt(lines[e.LineIndex], e);
                     if (e.FontDirty) lines[e.LineIndex] = ApplyProps(lines[e.LineIndex], e);
+                    lines[e.LineIndex] = EnsureSection(lines[e.LineIndex], e);
                 }
 
         // Emit added/relocated controls just before their (stationary) container's #END line.
@@ -450,6 +506,7 @@ public static class TplWriter
                 {
                     if (e.Dirty) ln = ApplyAt(ln, e);
                     if (e.FontDirty) ln = ApplyProps(ln, e);
+                    ln = EnsureSection(ln, e);
                 }
                 yield return ln;
             }
@@ -458,6 +515,7 @@ public static class TplWriter
         {
             var ln = lines[e.LineIndex];             // existing leaf, kept verbatim except edited AT/PROPs
             if (e.Dirty) ln = ApplyAt(ln, e);
+            if (e.Dirty) ln = ApplyPromptAt(ln, e);
             if (e.FontDirty) ln = ApplyProps(ln, e);
             yield return ln;
         }
@@ -476,7 +534,9 @@ public static class TplWriter
     {
         line = e.FontColor is uint c ? SetProp(line, "FontColor", $"0{c:X}H") : RemoveProp(line, "FontColor");
         if (e.FontSize > 0)        line = SetProp(line, "FontSize", e.FontSize.ToString());
-        if (e.FontName.Length > 0) line = SetProp(line, "Font", $"'{Esc(e.FontName)}'");
+        line = RemoveProp(line, "Font");   // drop any legacy PROP(PROP:Font,'x') - the face goes in PROP:FontName
+        if (e.FontName.Length > 0) line = SetProp(line, "FontName", $"'{Esc(e.FontName)}'");
+        else                       line = RemoveProp(line, "FontName");
         if (e.FontStyle > 0)       line = SetProp(line, "FontStyle", e.FontStyle.ToString());
         return line;
     }
@@ -507,10 +567,11 @@ public static class TplWriter
             TplKind.Tab     => $"{ind}#TAB('{Esc(e.Title)}')" + (e.Where.Length > 0 ? $",WHERE({e.Where})" : ""),
             TplKind.Display => $"{ind}#DISPLAY('{Esc(e.Title)}'),{at}",
             TplKind.Image   => $"{ind}#IMAGE('{Esc(e.Title)}'),{at}",
-            TplKind.Boxed   => $"{ind}#BOXED('{Esc(e.Title)}'),{at}",
+            TplKind.Boxed   => $"{ind}#BOXED('{Esc(e.Title)}')" + (e.Section ? ",SECTION" : "") + $",{at}",
             TplKind.Button  => $"{ind}#BUTTON('{Esc(e.Title)}'),{at}",
             TplKind.Prompt  => $"{ind}#PROMPT('{Esc(e.Title)}',{e.PromptType})"
                              + (string.IsNullOrEmpty(e.Symbol) ? "" : $",{e.Symbol}")
+                             + (e.HasPromptAt ? $",PROMPTAT({e.PX},{e.PY})" : "")
                              + $",{at}"
                              + (e.Req ? ",REQ" : "")
                              + (e.DefaultExpr.Length > 0 ? $",DEFAULT({e.DefaultExpr})"
@@ -524,6 +585,30 @@ public static class TplWriter
         yield return e;
         foreach (var c in e.Children)
             foreach (var x in Flatten(c)) yield return x;
+    }
+
+    // Insert ,SECTION into a #BOXED open line (right after #BOXED or #BOXED('title')) when the box is flagged
+    // SECTION and the line doesn't already carry it. No-op for non-boxes / non-section / already-present.
+    static string EnsureSection(string line, TplElement e)
+    {
+        if (e.Kind != TplKind.Boxed || !e.Section) return line;
+        if (Regex.IsMatch(line, @",\s*SECTION\b", RegexOptions.IgnoreCase)) return line;
+        var m = Regex.Match(line, @"#BOXED\s*(\(\s*'(?:[^']|'')*'\s*\))?", RegexOptions.IgnoreCase);
+        if (!m.Success) return line;
+        int at = m.Index + m.Length;
+        return line[..at] + ",SECTION" + line[at..];
+    }
+
+    // Update/insert PROMPTAT(x,y) - the label position - for a #PROMPT the designer has positioned.
+    static string ApplyPromptAt(string line, TplElement e)
+    {
+        if (e.Kind != TplKind.Prompt || !e.HasPromptAt) return line;
+        string pat = $"PROMPTAT({e.PX},{e.PY})";
+        var m = Regex.Match(line, @"\bPROMPTAT\([^)]*\)", RegexOptions.IgnoreCase);
+        if (m.Success) return line[..m.Index] + pat + line[(m.Index + m.Length)..];
+        int cut = TrailingComment(line);
+        if (cut < 0) return line.TrimEnd() + "," + pat;
+        return line[..cut].TrimEnd() + "," + pat + " " + line[cut..];
     }
 
     static string ApplyAt(string line, TplElement e)

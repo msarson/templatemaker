@@ -108,6 +108,7 @@ public partial class MainWindow
         foreach (var tab in comp.Tabs)
         {
             if (tab.Deleted) continue;
+            if (_previewTrueLayout) Layout.Run(tab);   // compute LX/LY so True layout mirrors the design canvas
             var sp = new StackPanel { Margin = new Thickness(10) };
             BuildFlow(sp, tab.Children);
             object header = tab.Title;
@@ -183,8 +184,10 @@ public partial class MainWindow
         }
     }
 
-    // Collect (y, x, block, visual) for each control. "block" controls (boxes, option groups) get their
-    // own full-width row; only leaf controls are grouped side by side.
+    // Collect (y, x, block, visual) for each control, using the COMPUTED layout position LX/LY (not the raw
+    // AT). LY honours both an explicit AT(x,y) and Clarion's auto-flow of an omitted Y, so True layout groups
+    // controls into rows exactly as they sit on the design canvas. "block" controls (boxes, option groups)
+    // get their own full-width row; leaf controls within a few units of Y are grouped side by side.
     void CollectRows(List<(double y, double x, bool block, FrameworkElement vis)> rows, IEnumerable<TplElement> children)
     {
         StackPanel? optionGroup = null;
@@ -202,7 +205,7 @@ public partial class MainWindow
             if (!(el.Kind == TplKind.Prompt && u.StartsWith("OPTION"))) optionGroup = null;
 
             if (el.Kind == TplKind.Enable) { CollectRows(rows, el.Children); continue; }
-            double y = el.HasY ? el.Y : 0, x = el.HasX ? el.X : 0;
+            double y = el.LY, x = el.LX;   // computed layout position: matches the design canvas
             if (el.Kind == TplKind.Prompt && u.StartsWith("OPTION"))
             {
                 rows.Add((y, x, true, Selectable(MakeOptionGroup(el, out optionGroup), el)));
@@ -213,8 +216,10 @@ public partial class MainWindow
         }
     }
 
-    // Group collected leaf controls whose Y is within a few units onto one horizontal row (ordered by X);
-    // boxes/option groups always take their own row.
+    // Order rows top-to-bottom by their computed Y (LY), then group leaf controls whose Y is within a few
+    // units onto one horizontal row (ordered by X) — so two controls dragged onto the same line on the design
+    // canvas sit side by side here too, regardless of their order in the source. Boxes/option groups always
+    // take their own row.
     void FlushRows(Panel host, List<(double y, double x, bool block, FrameworkElement vis)> rows)
     {
         var sorted = rows.OrderBy(r => r.y).ToList();
@@ -683,7 +688,7 @@ public partial class MainWindow
         var cm = new ContextMenu();
         cm.Items.Add(BuildArrangeMenu(el));
         cm.Items.Add(new Separator());
-        cm.Items.Add(ZItem("Font && Colour…", () => EditFontDialog(el)));
+        cm.Items.Add(ZItem("Colour…", () => { if (!_selection.Contains(el)) Select(el); ChangeColor(); }));
         cm.Items.Add(ZItem("Duplicate", () => { PickKeep(el); Duplicate(); }));
         cm.Items.Add(ZItem("Copy", () => { PickKeep(el); Copy(); }));
         cm.Items.Add(new Separator());
@@ -750,6 +755,14 @@ public partial class MainWindow
         if (!string.IsNullOrWhiteSpace(el.FontName)) t.FontFamily = new FontFamily(el.FontName);
         if (el.FontSize > 0) t.FontSize = Math.Max(8, el.FontSize);
         t.FontWeight = el.Bold ? FontWeights.Bold : FontWeights.Normal;
+        if (el.Italic) t.FontStyle = FontStyles.Italic;
+        if (el.Underline || el.Strikeout)
+        {
+            var dec = new TextDecorationCollection();
+            if (el.Underline) foreach (var d in TextDecorations.Underline) dec.Add(d);
+            if (el.Strikeout) foreach (var d in TextDecorations.Strikethrough) dec.Add(d);
+            t.TextDecorations = dec;
+        }
         if (el.FontColor is uint c) t.Foreground = FromColorRef(c);
     }
     static void ApplyFont(Control c, TplElement el)

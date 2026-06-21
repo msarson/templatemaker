@@ -8,6 +8,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
+using System.Xml.Linq;
 using System.Text.RegularExpressions;
 using ICSharpCode.AvalonEdit.CodeCompletion;
 using ICSharpCode.AvalonEdit.Document;
@@ -41,16 +42,73 @@ public partial class MainWindow : Window
     int GridStep => int.TryParse(txtGrid.Text, out var g) && g > 0 ? g : 5;
     const double SnapPx = 6;                 // snap threshold in pixels
 
+    // Clarion prompt windows render text in this dialog font. Calibrated against Clarion 12: a label's width
+    // in DLU ~= its Microsoft Sans Serif 8pt pixel width * FontCal, so on the canvas we render the text at
+    // (pt * Scale * FontCal) px. This makes a label occupy the SAME number of DLU it will in Clarion, so what
+    // fits (or overlaps the entry) here fits (or overlaps) there. Without it the designer under-measured text.
+    // The font Clarion's AppGen renders prompt sheets in - read from the IDE "AppGen Dialogs" setting
+    // (Options > IDE > Fonts > Dialogs). This is the DEFAULT face and the basis for the DLU calibration;
+    // a per-control PROP:FontName still overrides it. Defaults to Segoe UI 9 if the IDE config isn't found.
+    string _ideFontName = "Segoe UI";
+    double _ideFontSize = 9;
+    // Render size: point size scaled to the zoom so text sits in the controls the way Clarion shows it.
+    const double FontRenderCal = 0.62;
+    // Horizontal dialog-unit metric (px of the IDE font per DLU) used ONLY to judge whether a label fits the
+    // gap to its entry. Independent of the render size so the overlap guide stays accurate at any zoom.
+    const double ClarionHDlu = 1.1;
+    double DluFontPx(TplElement el) => Math.Max(8, (el.FontSize > 0 ? el.FontSize : _ideFontSize) * Scale * FontRenderCal);
+    FontFamily UiFontFamily(TplElement el) =>
+        new FontFamily(string.IsNullOrWhiteSpace(el.FontName) ? _ideFontName : el.FontName);
+
+    // Read the AppGen dialog font from %APPDATA%\SoftVelocity\Clarion\<ver>\ClarionProperties.xml so the
+    // designer renders and measures prompt text exactly as Clarion will. Highest installed version wins.
+    void LoadClarionDialogFont()
+    {
+        try
+        {
+            string appdata = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            foreach (var ver in new[] { "15.0", "14.0", "13.0", "12.0", "11.0", "10.0" })
+            {
+                string p = System.IO.Path.Combine(appdata, "SoftVelocity", "Clarion", ver, "ClarionProperties.xml");
+                if (!System.IO.File.Exists(p)) continue;
+                var props = XDocument.Load(p).Descendants("Properties")
+                                     .FirstOrDefault(e => (string?)e.Attribute("name") == "AppGen Dialogs");
+                if (props == null) continue;
+                var name = (string?)props.Elements("DlgFontName").FirstOrDefault()?.Attribute("value");
+                var size = (string?)props.Elements("DlgFontSize").FirstOrDefault()?.Attribute("value");
+                if (!string.IsNullOrWhiteSpace(name)) _ideFontName = name!;
+                if (double.TryParse(size, out var s) && s > 0) _ideFontSize = s;
+                return;
+            }
+        }
+        catch { /* keep the Segoe UI 9 defaults */ }
+    }
+
+    // Apply the Clarion font-STYLE flags (italic / underline / strikeout) to a canvas TextBlock.
+    static void ApplyTextStyle(TextBlock t, TplElement el)
+    {
+        if (el.Italic) t.FontStyle = FontStyles.Italic;
+        if (el.Underline || el.Strikeout)
+        {
+            var dec = new TextDecorationCollection();
+            if (el.Underline) foreach (var d in TextDecorations.Underline) dec.Add(d);
+            if (el.Strikeout) foreach (var d in TextDecorations.Strikethrough) dec.Add(d);
+            t.TextDecorations = dec;
+        }
+    }
+
     readonly List<TplElement> _selection = new();                       // all selected (incl. the primary _sel)
     readonly Dictionary<TplElement, (double X, double Y)> _dragStartPos = new();
     bool _marquee; Point _marqueeStart; Rectangle? _marqueeRect;
     readonly Dictionary<TplElement, Border> _chips = new();
+    readonly Dictionary<TplElement, Border> _promptLabels = new();   // the separate label visual for side-label prompts
     readonly Dictionary<string, BitmapImage?> _imgCache = new(StringComparer.OrdinalIgnoreCase);
     readonly List<Guide> _guides = new();
 
     enum Drag { None, Element, Guide, Resize }
     Drag _drag = Drag.None;
     TplElement? _dragEl;
+    bool _dragLabel;                    // the current Element drag is moving a prompt's LABEL (PROMPTAT), not its entry
     Guide? _dragGuide;
     Point _dragStart;
     double _elStartX, _elStartY;
@@ -118,12 +176,10 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        LoadClarionDialogFont();       // render/measure prompt text in Clarion's actual AppGen dialog font
         PreviewKeyDown += OnKeyDown;   // tunnel: see arrows before the ScrollViewer scrolls on them
         canvas.Focusable = true;       // so the canvas can hold keyboard focus for nudging
-        var fonts = System.Windows.Media.Fonts.SystemFontFamilies
-            .Select(f => f.Source).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
-        cmbFont.ItemsSource = fonts;
-        cmbFontBar.ItemsSource = fonts;
+        lblDialogFont.Text = lblBarDialogFont.Text = $"{_ideFontName} · {_ideFontSize:0} pt  (Clarion IDE)";
         cmbPromptType.ItemsSource = new[]
         {
             "@s255", "@n8", "@n-12.2", "@d1", "CHECK", "SPIN(@n3,0,100)", "DROP('Item1|Item2')",
@@ -493,8 +549,12 @@ public partial class MainWindow : Window
     {
         if (_doc == null) return;
         _parts = _doc.Components.Where(c => c.HasSheet).ToList();
-        cmbParts.ItemsSource = _parts.Select(PartLabel).ToList();
         _pendingTabIdx = tabIdx;
+        // Clear first: WPF preserves a ComboBox selection by VALUE across an ItemsSource swap, so switching to
+        // a document whose part label matches would leave SelectedIndex unchanged and Part_Changed would never
+        // fire (stale canvas). Dropping to -1 guarantees the real selection raises the event and refreshes.
+        cmbParts.SelectedIndex = -1;
+        cmbParts.ItemsSource = _parts.Select(PartLabel).ToList();
         if (_parts.Count > 0) cmbParts.SelectedIndex = Math.Min(Math.Max(partIdx, 0), _parts.Count - 1);
         else { cmbParts.SelectedIndex = -1; _component = null; _tab = null; cmbTabs.ItemsSource = null; Render(); }
     }
@@ -1866,6 +1926,7 @@ public partial class MainWindow : Window
         Select(null);
         LoadSource();           // current part may live in a different file
         ScrollSourceToComponent();   // ...and bring that part into view rather than leaving the editor where it was
+        cmbTabs.SelectedIndex = -1;   // same value-preservation quirk as the parts combo: force Tab_Changed to fire
         cmbTabs.ItemsSource = LiveTabs().Select(t => t.Title).ToList();
         int want = _pendingTabIdx; _pendingTabIdx = 0;
         var lts = LiveTabs();
@@ -1892,6 +1953,7 @@ public partial class MainWindow : Window
         RefreshLiveSource();          // keep the live source in step with the model
         canvas.Children.Clear();
         _chips.Clear();
+        _promptLabels.Clear();
         _handles.Clear();
         if (_preview) { RenderPreview(); return; }
         if (_tab == null) return;
@@ -1910,9 +1972,77 @@ public partial class MainWindow : Window
 
         DrawGrid();
         foreach (var g in _guides) AddGuideVisual(g);
+        DrawVisibilityGuides();
 
         UpdateRulers();
         RefreshSelectionVisual();
+    }
+
+    void VisGuides_Changed(object s, RoutedEventArgs e) => Render();
+
+    // Overlay that shows "what is viewable and what isn't": the auto-fit window edge, plus controls that fall
+    // off the window, spill outside their group box, or (for prompts) whose label is hidden under its entry.
+    void DrawVisibilityGuides()
+    {
+        if (miVisGuides?.IsChecked != true || _tab == null) return;
+        var items = Positionable(_tab).ToList();
+
+        // The Clarion prompt window auto-sizes (SHEET ADJUST) to fit its content - draw that edge.
+        double cw = 0, chgt = 0;
+        foreach (var e in items) { cw = Math.Max(cw, e.LX + e.LW); chgt = Math.Max(chgt, e.LY + e.LH); }
+        if (cw > 0) AddOverlay(0, 0, cw, chgt, Color.FromRgb(0x7E, 0xA6, 0xC9), 1, "Clarion window (auto-fit to content)", false);
+
+        var red   = Color.FromRgb(0xD9, 0x46, 0x3C);   // clipped / hidden -> will not be fully visible
+        var amber = Color.FromRgb(0xC8, 0x86, 0x1A);   // spills outside its group box
+
+        foreach (var e in items)
+        {
+            if (e.Kind == TplKind.Boxed) continue;
+
+            if (e.LX < 0 || e.LY < 0)
+                AddOverlay(e.LX, e.LY, e.LW, e.LH, red, 2, "Off the window edge — clipped in Clarion", true);
+
+            if (e.Parent is { Kind: TplKind.Boxed } box &&
+                (e.LX < box.LX - 0.5 || e.LY < box.LY - 0.5 ||
+                 e.LX + e.LW > box.LX + box.LW + 0.5 || e.LY + e.LH > box.LY + box.LH + 0.5))
+                AddOverlay(e.LX, e.LY, e.LW, e.LH, amber, 1.5, "Extends outside its group box", true);
+
+            if (Layout.HasSideLabel(e))   // a prompt label too wide for the gap -> clipped by its entry in Clarion
+            {
+                double labDlu = MeasureTextPx(e, e.FontSize > 0 ? e.FontSize : _ideFontSize) / ClarionHDlu;
+                if (e.PLX + labDlu + 1 > e.LX)   // reaches/overlaps the entry's left edge (+1 DLU clearance)
+                    AddOverlay(e.PLX, e.PLY, labDlu, Math.Max(8, e.PLH), red, 2,
+                               "Label is wider than the gap to its entry — it will be clipped in Clarion", true);
+            }
+        }
+    }
+
+    // Width (px) of a control's text at the given em size, in the control's font. The overlap guide calls it
+    // with emSize = the Clarion point size (NOT the zoomed render size), so the derived DLU width is zoom-independent.
+    double MeasureTextPx(TplElement el, double emSize)
+    {
+        string text = el.Title.Length > 0 ? el.Title : el.Symbol;
+        var tf = new Typeface(UiFontFamily(el), el.Italic ? FontStyles.Italic : FontStyles.Normal,
+                              el.Bold ? FontWeights.Bold : FontWeights.Normal, FontStretches.Normal);
+        var ft = new FormattedText(text, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+                                   tf, emSize, Brushes.Black, VisualTreeHelper.GetDpi(this).PixelsPerDip);
+        return ft.WidthIncludingTrailingWhitespace;
+    }
+
+    void AddOverlay(double x, double y, double w, double h, Color c, double thick, string tip, bool dashed) =>
+        AddOverlayPx(new Rect(x * Scale, y * Scale, Math.Max(6, w * Scale), Math.Max(6, h * Scale)), c, thick, tip, dashed);
+
+    void AddOverlayPx(Rect r, Color c, double thick, string tip, bool dashed)
+    {
+        var b = new Border
+        {
+            BorderBrush = new SolidColorBrush(c), BorderThickness = new Thickness(thick),
+            Width = r.Width, Height = r.Height, IsHitTestVisible = false, ToolTip = tip,
+            Background = dashed ? new SolidColorBrush(Color.FromArgb(0x16, c.R, c.G, c.B)) : Brushes.Transparent
+        };
+        Canvas.SetLeft(b, r.X); Canvas.SetTop(b, r.Y);
+        Panel.SetZIndex(b, 100);
+        canvas.Children.Add(b);
     }
 
     IEnumerable<TplElement> Positionable(TplElement c)
@@ -2328,12 +2458,12 @@ public partial class MainWindow : Window
                 var t = new TextBlock
                 {
                     Text = el.Title.Length > 0 ? el.Title : el.Symbol,
-                    Foreground = fg, FontSize = Math.Max(8, el.FontSize > 0 ? el.FontSize : 9),
+                    Foreground = fg, FontSize = DluFontPx(el), FontFamily = UiFontFamily(el),
                     FontWeight = el.Bold ? FontWeights.Bold : FontWeights.Normal,
                     VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(3, 0, 4, 0),
                     TextTrimming = TextTrimming.CharacterEllipsis
                 };
-                if (!string.IsNullOrWhiteSpace(el.FontName)) t.FontFamily = new FontFamily(el.FontName);
+                ApplyTextStyle(t, el);
                 return t;
             }
 
@@ -2357,8 +2487,9 @@ public partial class MainWindow : Window
             }
             else                                              // entry / dropdown / picker
             {
+                // The AT rect is the ENTRY only; the label is drawn separately at PROMPTAT (AddPromptLabel),
+                // exactly as Clarion lays it out. So no label goes inside this chip.
                 var dock = new DockPanel { LastChildFill = true };
-                var lab = Label(); DockPanel.SetDock(lab, Dock.Left); dock.Children.Add(lab);
                 if (glyph.Length > 0) { var b2 = FauxButton(glyph); DockPanel.SetDock(b2, Dock.Right); dock.Children.Add(b2); }
                 var entry = new Border        // faux entry field, fills the remaining width
                 {
@@ -2387,12 +2518,12 @@ public partial class MainWindow : Window
                 Foreground = el.Kind == TplKind.Image && el.FontColor is null
                              ? new SolidColorBrush(Color.FromRgb(150, 110, 60)) : fg,
                 FontWeight = el.Bold ? FontWeights.Bold : FontWeights.Normal,
-                FontSize = Math.Max(8, (el.FontSize > 0 ? el.FontSize : 9)),
+                FontSize = DluFontPx(el), FontFamily = UiFontFamily(el),
                 Margin = new Thickness(2, 0, 2, 0),
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 VerticalAlignment = VerticalAlignment.Center
             };
-            if (!string.IsNullOrWhiteSpace(el.FontName)) t.FontFamily = new FontFamily(el.FontName);
+            ApplyTextStyle(t, el);
             border.Child = t;
         }
         else
@@ -2416,6 +2547,32 @@ public partial class MainWindow : Window
         border.MouseLeftButtonDown += Chip_Down;
         canvas.Children.Add(border);
         _chips[el] = border;
+        if (Layout.HasSideLabel(el)) AddPromptLabel(el);
+    }
+
+    // Draw a side-label prompt's LABEL as its own visual at the PROMPTAT rect (PLX/PLY). Non-interactive: the
+    // entry chip is the drag handle, and the label tracks it (PlaceChip/MoveElement), so the canvas shows the
+    // label exactly where Clarion will place it.
+    void AddPromptLabel(TplElement el)
+    {
+        var fg = el.FontColor is uint pc ? FromColorRef(pc) : Brushes.Black;
+        var t = new TextBlock
+        {
+            Text = el.Title.Length > 0 ? el.Title : el.Symbol,
+            Foreground = fg, FontSize = DluFontPx(el), FontFamily = UiFontFamily(el),
+            FontWeight = el.Bold ? FontWeights.Bold : FontWeights.Normal,
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 2, 0)
+        };
+        ApplyTextStyle(t, el);
+        var b = new Border { Background = Brushes.Transparent, Child = t, Tag = el,
+                             Cursor = Cursors.SizeAll, ToolTip = "Prompt label (PROMPTAT) — drag to position it independently of the entry",
+                             Height = Math.Max(6, el.PLH * Scale) };
+        Canvas.SetLeft(b, el.PLX * Scale);
+        Canvas.SetTop(b, el.PLY * Scale);
+        Panel.SetZIndex(b, el.HasZ ? el.Z : 6);     // just above the entry chip so the label is grabbable
+        b.MouseLeftButtonDown += Label_Down;
+        canvas.Children.Add(b);
+        _promptLabels[el] = b;
     }
 
     // ---------- prompt-type awareness ----------
@@ -2644,7 +2801,7 @@ public partial class MainWindow : Window
         if (el.Kind is TplKind.Prompt or TplKind.Display or TplKind.Boxed)
         {
             cm.Items.Add(new Separator());
-            cm.Items.Add(ZItem("Font && Colour…", () => EditFontDialog(el)));
+            cm.Items.Add(ZItem("Colour…", () => { if (!_selection.Contains(el)) Select(el); ChangeColor(); }));
         }
         cm.Items.Add(new Separator());
         cm.Items.Add(ZItem("Duplicate", () => { PickKeep(el); Duplicate(); }));
@@ -3287,7 +3444,7 @@ public partial class MainWindow : Window
         else { _sel = el; RefreshSelectionVisual(); PopulateProps(el); }   // click a member -> keep group, set primary
 
         BeginGesture();
-        _drag = Drag.Element; _dragEl = el; _dragMoved = false;
+        _drag = Drag.Element; _dragEl = el; _dragMoved = false; _dragLabel = false;
         _dragStart = e.GetPosition(canvas);
         _elStartX = el.LX; _elStartY = el.LY;
         _dragStartPos.Clear();
@@ -3295,6 +3452,35 @@ public partial class MainWindow : Window
         canvas.CaptureMouse();
         canvas.Focus();                 // take keyboard focus so arrow keys nudge this control
         e.Handled = true;
+    }
+
+    // Mouse-down on a prompt's LABEL visual: drag just the label (PROMPTAT), leaving the entry put.
+    void Label_Down(object s, MouseButtonEventArgs e)
+    {
+        var el = (TplElement)((Border)s).Tag;
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != 0) { ToggleSelect(el); e.Handled = true; return; }
+        if (!_selection.Contains(el)) Select(el);
+        BeginGesture();
+        _drag = Drag.Element; _dragEl = el; _dragMoved = false; _dragLabel = true;
+        _dragStart = e.GetPosition(canvas);
+        _elStartX = el.PLX; _elStartY = el.PLY;     // reuse the element-drag start to track the label rect
+        canvas.CaptureMouse();
+        canvas.Focus();
+        e.Handled = true;
+    }
+
+    // Move just a prompt's label (its PROMPTAT) to a new tab/box position.
+    void MoveLabel(TplElement el, double lx, double ly)
+    {
+        _gestureChanged = true;
+        lx = Math.Max(0, lx); ly = Math.Max(0, ly);
+        el.PLX = lx; el.PLY = ly;
+        var (ox, oy) = FrameOrigin(el);
+        el.PX = (int)Math.Round(lx - ox);
+        el.PY = (int)Math.Round(ly - oy);
+        el.HasPromptAt = el.HasPX = el.HasPY = el.Dirty = true;
+        if (_promptLabels.TryGetValue(el, out var lb)) { Canvas.SetLeft(lb, lx * Scale); Canvas.SetTop(lb, ly * Scale); }
+        status.Text = $"{el.Display}  label →  PROMPTAT({el.PX},{el.PY})";
     }
 
     void Select(TplElement? el)        // single-select (replaces the whole selection)
@@ -3382,8 +3568,6 @@ public partial class MainWindow : Window
         txtText.IsEnabled = el is { Inserted: true };   // re-titling existing controls would rewrite their line; keep to added ones
         txtBarText.Text = el?.Title ?? "";
         txtBarText.IsEnabled = el is { Inserted: true };
-        cmbFontBar.Text = el?.FontName ?? "";
-        txtBarSize.Text = el is { FontSize: > 0 } ? el.FontSize.ToString() : "";
         bool isImg = el is { Kind: TplKind.Image };
         imgRow.Visibility = isImg ? Visibility.Visible : Visibility.Collapsed;
         btnBrowseImg.IsEnabled = isImg && el!.Inserted;  // browsing changes the file name (only added images persist)
@@ -3405,9 +3589,9 @@ public partial class MainWindow : Window
         styleHdr.Visibility = styleGrid.Visibility = styleable ? Visibility.Visible : Visibility.Collapsed;
         if (styleable)
         {
-            cmbFont.Text = el!.FontName;
-            txtFontSize.Text = el.FontSize > 0 ? el.FontSize.ToString() : "";
-            chkBold.IsChecked = el.Bold;
+            chkBold.IsChecked = el!.Bold;
+            chkItalic.IsChecked = el.Italic;
+            chkUnderline.IsChecked = el.Underline;
             colorSwatch.Background = el.FontColor is uint cc ? FromColorRef(cc) : Brushes.Transparent;
         }
         _suppressProp = false;
@@ -3507,27 +3691,28 @@ public partial class MainWindow : Window
         srcHdr.Visibility = propSource.Visibility = Visibility.Visible;
     }
 
-    void Font_Changed(object s, RoutedEventArgs e)
-    {
-        if (_suppressProp || _sel == null) return;
-        string name = (cmbFont.Text ?? "").Trim();
-        if (_selection.Count == 1 && name == _sel.FontName) return;
-        ApplyStyle(el => el.FontName = name);
-    }
-
-    void FontSize_Changed(object s, TextChangedEventArgs e)
-    {
-        if (_suppressProp || _sel == null) return;
-        int sz = int.TryParse(txtFontSize.Text, out var v) ? v : 0;
-        if (_selection.Count == 1 && sz == _sel.FontSize) return;
-        ApplyStyle(el => el.FontSize = sz);
-    }
-
     void Bold_Changed(object s, RoutedEventArgs e)
     {
         if (_suppressProp || _sel == null) return;
         bool nb = chkBold.IsChecked == true;
-        ApplyStyle(el => { el.Bold = nb; el.FontStyle = nb ? 700 : 400; });
+        ApplyStyle(el => { el.Bold = nb; el.FontStyle = (nb ? 700 : 400) | (el.FontStyle & 0x7000); });   // keep italic/underline/strikeout
+    }
+
+    void Italic_Changed(object s, RoutedEventArgs e)    { if (!_suppressProp) SetStyleFlag(0x1000, chkItalic.IsChecked == true); }
+    void Underline_Changed(object s, RoutedEventArgs e) { if (!_suppressProp) SetStyleFlag(0x2000, chkUnderline.IsChecked == true); }
+
+    // Set/clear a Clarion FONT style flag bit (italic 0x1000 / underline 0x2000 / strikeout 0x4000) on the
+    // selection, keeping a valid weight (400 if none was set).
+    void SetStyleFlag(int bit, bool on)
+    {
+        if (_sel == null) return;
+        ApplyStyle(el =>
+        {
+            int weight = el.FontStyle & 0xFFF; if (weight == 0) weight = 400;
+            int flags = el.FontStyle & 0x7000;
+            flags = on ? (flags | bit) : (flags & ~bit);
+            el.FontStyle = weight | flags;
+        });
     }
 
     void Color_Click(object s, RoutedEventArgs e) => ChangeColor();
@@ -3563,69 +3748,21 @@ public partial class MainWindow : Window
         else Render();
     }
 
-    void BarFont_Changed(object s, RoutedEventArgs e)
-    {
-        if (_suppressProp || _sel == null) return;
-        string name = (cmbFontBar.Text ?? "").Trim();
-        if (_selection.Count == 1 && name == _sel.FontName) return;
-        ApplyStyle(el => el.FontName = name);
-    }
-
-    void BarSize_Changed(object s, TextChangedEventArgs e)
-    {
-        if (_suppressProp || _sel == null) return;
-        int sz = int.TryParse(txtBarSize.Text, out var v) ? v : 0;
-        if (_selection.Count == 1 && sz == _sel.FontSize) return;
-        ApplyStyle(el => el.FontSize = sz);
-    }
-
     // ---------- style command bar / menu (act on all selected) ----------
-    void StyleFont_Click(object s, RoutedEventArgs e) => EditFontDialog(_sel);
     void StyleColor_Click(object s, RoutedEventArgs e) => ChangeColor();
 
     void StyleBold_Click(object s, RoutedEventArgs e)
     {
         if (_sel == null) return;
         bool nb = !_sel.Bold;
-        ApplyStyle(el => { el.Bold = nb; el.FontStyle = nb ? 700 : 400; });
+        ApplyStyle(el => { el.Bold = nb; el.FontStyle = (nb ? 700 : 400) | (el.FontStyle & 0x7000); });   // keep italic/underline/strikeout
         PopulateProps(_sel);
     }
 
-    void StyleBigger_Click(object s, RoutedEventArgs e) => BumpSize(+1);
-    void StyleSmaller_Click(object s, RoutedEventArgs e) => BumpSize(-1);
-
-    void BumpSize(int delta)
-    {
-        if (_sel == null) return;
-        ApplyStyle(el => el.FontSize = Math.Max(4, (el.FontSize > 0 ? el.FontSize : 9) + delta));
-        PopulateProps(_sel);
-    }
+    void StyleItalic_Click(object s, RoutedEventArgs e)    { if (_sel != null) { SetStyleFlag(0x1000, !_sel.Italic); PopulateProps(_sel); } }
+    void StyleUnderline_Click(object s, RoutedEventArgs e) { if (_sel != null) { SetStyleFlag(0x2000, !_sel.Underline); PopulateProps(_sel); } }
 
     // One-shot font + style + colour picker (right-click menu / toolbar / menu) — applies to all selected.
-    void EditFontDialog(TplElement? el)
-    {
-        if (el == null) return;
-        if (!_selection.Contains(el)) Select(el);   // right-clicking a non-selected control acts on just it
-        using var fd = new System.Windows.Forms.FontDialog { ShowColor = true, ShowEffects = true, FontMustExist = false };
-        try
-        {
-            var style = el.Bold ? System.Drawing.FontStyle.Bold : System.Drawing.FontStyle.Regular;
-            fd.Font = new System.Drawing.Font(el.FontName.Length > 0 ? el.FontName : "Segoe UI",
-                                              el.FontSize > 0 ? el.FontSize : 9, style);
-            if (el.FontColor is uint c)
-                fd.Color = System.Drawing.Color.FromArgb((int)(c & 0xFF), (int)((c >> 8) & 0xFF), (int)((c >> 16) & 0xFF));
-        }
-        catch { /* invalid current font; dialog opens with defaults */ }
-
-        if (fd.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
-        var ft = fd.Font;
-        int pts = (int)Math.Round(ft.SizeInPoints);
-        uint cref = (uint)(fd.Color.R | (fd.Color.G << 8) | (fd.Color.B << 16));
-        ApplyStyle(t => { t.FontName = ft.Name; t.FontSize = pts; t.Bold = ft.Bold; t.FontStyle = ft.Bold ? 700 : 400; t.FontColor = cref; });
-        PopulateProps(_sel);
-        status.Text = $"{(_selection.Count > 1 ? _selection.Count + " controls" : _sel?.Display)}  →  {ft.Name} {pts}pt{(ft.Bold ? " Bold" : "")}";
-    }
-
     // ---------- canvas dragging ----------
     void Canvas_MouseDown(object s, MouseButtonEventArgs e)
     {
@@ -3666,7 +3803,13 @@ public partial class MainWindow : Window
             _dragMoved = true;
         }
 
-        if (_drag == Drag.Element && _dragEl != null)
+        if (_drag == Drag.Element && _dragLabel && _dragEl != null)   // dragging just the label (PROMPTAT)
+        {
+            double nx = SnapX(_elStartX + (p.X - _dragStart.X) / Scale);
+            double ny = SnapY(_elStartY + (p.Y - _dragStart.Y) / Scale);
+            MoveLabel(_dragEl, nx, ny);
+        }
+        else if (_drag == Drag.Element && _dragEl != null)
         {
             double nx = SnapX(_elStartX + (p.X - _dragStart.X) / Scale);
             double ny = SnapY(_elStartY + (p.Y - _dragStart.Y) / Scale);
@@ -3723,12 +3866,12 @@ public partial class MainWindow : Window
         }
         if (_drag == Drag.Guide && _dragGuide != null && InRulerZone(e.GetPosition(scroller)))
             DeleteGuide(_dragGuide);
-        else if (_drag == Drag.Element && _dragEl != null && !_dragEl.IsContainer && _selection.Count <= 1)
+        else if (_drag == Drag.Element && !_dragLabel && _dragEl != null && !_dragEl.IsContainer && _selection.Count <= 1)
             TryReparent(_dragEl);            // dropping a single control may move it in/out of a group box
         bool wasElementGesture = _drag is Drag.Element or Drag.Resize;
         ClearSmartGuides();
         canvas.ReleaseMouseCapture();
-        _drag = Drag.None; _dragEl = null; _dragGuide = null;
+        _drag = Drag.None; _dragEl = null; _dragGuide = null; _dragLabel = false;
         if (wasElementGesture) CommitGesture();
     }
 
@@ -3797,6 +3940,11 @@ public partial class MainWindow : Window
         var (ox, oy) = FrameOrigin(el);            // now relative to the new container
         el.X = (int)Math.Round(el.LX - ox);
         el.Y = (int)Math.Round(el.LY - oy);
+        if (Layout.HasSideLabel(el) && el.HasPromptAt)   // rebase the label too (PROMPTAT is frame-relative)
+        {
+            el.PX = (int)Math.Round(el.PLX - ox);
+            el.PY = (int)Math.Round(el.PLY - oy);
+        }
         el.HasX = el.HasY = el.Dirty = true;
         if (!el.Inserted) el.Moved = true;         // existing control: its source line must relocate
         Render();
@@ -3821,12 +3969,20 @@ public partial class MainWindow : Window
         el.HasX = el.HasY = el.Dirty = true;
         if (!el.HasW) { el.W = (int)Math.Round(el.LW); el.HasW = true; }
         if (!el.HasH) { el.H = (int)Math.Round(el.LH); el.HasH = true; }
+        if (Layout.HasSideLabel(el))                   // keep the label glued to the entry, write its PROMPTAT
+        {
+            el.PLX += dX; el.PLY += dY;
+            el.PX = (int)Math.Round(el.PLX - ox);
+            el.PY = (int)Math.Round(el.PLY - oy);
+            el.HasPromptAt = el.HasPX = el.HasPY = true;
+        }
         PlaceChip(el);
 
         if (el.IsContainer)                            // a group box carries its contents
             foreach (var d in Descendants(el))
             {
                 d.LX += dX; d.LY += dY;                // their frame-relative AT is unchanged
+                d.PLX += dX; d.PLY += dY;              // label tracks too (its box-relative PROMPTAT is unchanged)
                 PlaceChip(d);
             }
 
@@ -3842,6 +3998,10 @@ public partial class MainWindow : Window
         if (_chips.TryGetValue(el, out var b))
         {
             Canvas.SetLeft(b, el.LX * Scale); Canvas.SetTop(b, el.LY * Scale);
+        }
+        if (_promptLabels.TryGetValue(el, out var lb))
+        {
+            Canvas.SetLeft(lb, el.PLX * Scale); Canvas.SetTop(lb, el.PLY * Scale);
         }
     }
 

@@ -115,11 +115,10 @@
             <MenuItem Header="Un_group box" Click="Ungroup_Click" InputGestureText="Ctrl+Shift+G"/>
         </MenuItem>
         <MenuItem Header="St_yle">
-            <MenuItem Header="_Font &amp; Colour…" Click="StyleFont_Click"/>
-            <MenuItem Header="_Colour…" Click="StyleColor_Click"/>
             <MenuItem Header="_Bold" Click="StyleBold_Click"/>
-            <MenuItem Header="_Larger" Click="StyleBigger_Click"/>
-            <MenuItem Header="_Smaller" Click="StyleSmaller_Click"/>
+            <MenuItem Header="_Italic" Click="StyleItalic_Click"/>
+            <MenuItem Header="_Underline" Click="StyleUnderline_Click"/>
+            <MenuItem Header="_Colour…" Click="StyleColor_Click"/>
         </MenuItem>
         <MenuItem Header="_Guides">
             <MenuItem Header="Add _Vertical guide" Click="AddVGuide_Click"/>
@@ -131,6 +130,7 @@
             <MenuItem x:Name="miSnapGrid"  Header="Snap to gri_d"   IsCheckable="True" IsChecked="True"/>
             <MenuItem x:Name="miSnapGuide" Header="Snap to g_uides" IsCheckable="True" IsChecked="True"/>
             <MenuItem x:Name="miSmartGuides" Header="S_mart guides (align to controls)" IsCheckable="True" IsChecked="True"/>
+            <MenuItem x:Name="miVisGuides" Header="Highlight clip_ped / overlapping controls" IsCheckable="True" IsChecked="True" Click="VisGuides_Changed"/>
             <Separator/>
             <MenuItem x:Name="miMinimap"   Header="Show _minimap"   IsCheckable="True" Click="Minimap_Toggle"/>
         </MenuItem>
@@ -213,16 +213,12 @@
             <TextBox x:Name="txtBarText" Width="150" VerticalAlignment="Center" TextChanged="BarText_Changed"
                      ToolTip="Caption / text / file of the selected control (added controls)"/>
             <Separator/>
-            <TextBlock VerticalAlignment="Center" Margin="4,0" Foreground="#5B6878">Font:</TextBlock>
-            <ComboBox x:Name="cmbFontBar" Width="130" IsEditable="True" VerticalAlignment="Center"
-                      SelectionChanged="BarFont_Changed" LostFocus="BarFont_Changed"/>
-            <TextBox x:Name="txtBarSize" Width="38" Margin="4,0,0,0" VerticalAlignment="Center"
-                     TextChanged="BarSize_Changed" ToolTip="Font size (points)"/>
-            <Button Click="StyleBold_Click"    Padding="9,2" FontWeight="Bold" ToolTip="Toggle bold">B</Button>
-            <Button Click="StyleBigger_Click"  Padding="7,2" ToolTip="Larger">A▲</Button>
-            <Button Click="StyleSmaller_Click" Padding="7,2" ToolTip="Smaller">A▼</Button>
-            <Button Click="StyleColor_Click"   Padding="7,2" ToolTip="Colour…">Colour…</Button>
-            <Button Click="StyleFont_Click"    Padding="7,2" ToolTip="Font, style &amp; colour…">Font…</Button>
+            <TextBlock x:Name="lblBarDialogFont" VerticalAlignment="Center" Margin="4,0" Foreground="#8A95A3"
+                       ToolTip="Clarion renders prompt sheets in the IDE Dialogs font (Options ▸ IDE ▸ Fonts). The per-control face and size are not used here — only bold / italic / underline / colour."/>
+            <Button Click="StyleBold_Click"      Padding="9,2" FontWeight="Bold" ToolTip="Toggle bold">B</Button>
+            <Button Click="StyleItalic_Click"    Padding="9,2" FontStyle="Italic" ToolTip="Toggle italic">I</Button>
+            <Button Click="StyleUnderline_Click" Padding="9,2" ToolTip="Toggle underline"><TextBlock Text="U" TextDecorations="Underline"/></Button>
+            <Button Click="StyleColor_Click"     Padding="7,2" ToolTip="Colour…">Colour…</Button>
         </ToolBar>
         <ToolBar Band="2" BandIndex="0">
             <TextBlock VerticalAlignment="Center" Margin="4,0" FontWeight="SemiBold" Foreground="#5B6878">Add:</TextBlock>
@@ -444,13 +440,14 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <TextBlock Grid.Row="0" Grid.Column="0" Text="Font" VerticalAlignment="Center" Margin="0,0,6,2"/>
-                    <ComboBox  Grid.Row="0" Grid.Column="1" x:Name="cmbFont" IsEditable="True" Margin="0,0,0,2"
-                               SelectionChanged="Font_Changed" LostFocus="Font_Changed"/>
-                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Size" VerticalAlignment="Center" Margin="0,0,6,2"/>
+                    <TextBlock Grid.Row="0" Grid.Column="1" x:Name="lblDialogFont" VerticalAlignment="Center" Margin="0,0,0,2"
+                               Foreground="#5B6878" TextWrapping="Wrap"
+                               ToolTip="Clarion renders prompt sheets in the IDE Dialogs font (Options ▸ IDE ▸ Fonts). The per-control face and size are not used here."/>
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Style" VerticalAlignment="Center" Margin="0,0,6,2"/>
                     <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,2">
-                        <TextBox x:Name="txtFontSize" Width="46" TextChanged="FontSize_Changed"/>
-                        <CheckBox x:Name="chkBold" Content="Bold" VerticalAlignment="Center" Margin="10,0,0,0"
-                                  Click="Bold_Changed"/>
+                        <CheckBox x:Name="chkBold" Content="Bold" VerticalAlignment="Center" Click="Bold_Changed"/>
+                        <CheckBox x:Name="chkItalic" Content="Italic" VerticalAlignment="Center" Margin="10,0,0,0" Click="Italic_Changed"/>
+                        <CheckBox x:Name="chkUnderline" Content="Underline" VerticalAlignment="Center" Margin="10,0,0,0" Click="Underline_Changed"/>
                     </StackPanel>
                     <TextBlock Grid.Row="2" Grid.Column="0" Text="Colour" VerticalAlignment="Center" Margin="0,0,6,0"/>
                     <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal">

@@ -29,6 +29,7 @@ public static class Layout
             else { x = ox + Indent; y = cursor; cursor += h + Gap; }
 
             ch.LX = x; ch.LY = y; ch.LW = w; ch.LH = h;
+            LayoutPromptLabel(ch, ox, oy);
 
             if (ch.IsContainer)
             {
@@ -39,6 +40,35 @@ public static class Layout
             bottom = Math.Max(bottom, y + ch.LH);
         }
         return bottom - oy;
+    }
+
+    // True for prompts that render a separate left-hand label + a right-hand entry (so PROMPTAT positions the
+    // label independently of AT). CHECK/OPTION/RADIO carry their caption inline, so they have no side label.
+    public static bool HasSideLabel(TplElement e)
+    {
+        if (e.Kind != TplKind.Prompt) return false;
+        string pt = e.PromptType.Trim().ToUpperInvariant();
+        return !(pt.StartsWith("CHECK") || pt.StartsWith("OPTION") || pt.StartsWith("RADIO"));
+    }
+
+    // Rough DLU width for a label from its text (no font metrics available here; the canvas auto-fits).
+    public static double EstLabelW(TplElement e) => Math.Min(200, Math.Max(30, e.Title.Length * 4.0 + 8));
+
+    // Compute the label rectangle (PLX/PLY/PLW/PLH) for a side-label prompt: from PROMPTAT if present, else
+    // defaulted to sit immediately left of the entry (AT). ox,oy = the frame origin the entry was placed in.
+    static void LayoutPromptLabel(TplElement ch, double ox, double oy)
+    {
+        if (!HasSideLabel(ch)) { ch.PLW = 0; return; }
+        double plw = ch.HasPW && ch.PW > 0 ? ch.PW : EstLabelW(ch);
+        double plh = ch.HasPH && ch.PH > 0 ? ch.PH : ch.LH;
+        double plx, ply;
+        if (ch.HasPromptAt)
+        {
+            plx = ch.HasPX ? ox + ch.PX : ch.LX - plw;
+            ply = ch.HasPY ? oy + ch.PY : ch.LY;
+        }
+        else { plx = ch.LX - plw; ply = ch.LY; }   // no PROMPTAT yet: label immediately left of the entry
+        ch.PLX = plx; ch.PLY = ply; ch.PLW = plw; ch.PLH = plh;
     }
 
     static double DefaultW(TplElement e, double width) => e.Kind switch

@@ -214,6 +214,18 @@ menu, and **recent templates** are remembered (toolbar dropdown and File ▸ Ope
 (press `F1`) and **Programmer's Reference** — beautifully formatted HTML guides bundled into the app
 (sources in `docs/`). See `designer/ClarionTplDesigner/README.md`.
 
+**Clarion-accurate prompt fidelity (v2.8).** The canvas now renders prompt text in Clarion's actual
+**AppGen Dialogs font**, auto-detected from `ClarionProperties.xml` (Options ▸ IDE ▸ Fonts), and sizes it
+to the zoom so what you lay out matches what AppGen draws. A `#PROMPT`'s **label (`PROMPTAT`) and entry
+(`AT`) are modelled separately** — drag the entry and the label follows, or drag the label on its own — and
+**visibility guides** highlight (in red/amber) any control off the window, spilling outside its group box, or
+whose label is too wide for the gap to its entry. **`#BOXED` children auto-get `SECTION`** so box-relative
+coordinates land where the designer shows them, and **True layout** mirrors the canvas exactly. The Style
+controls cover what AppGen honours per control — **bold / italic / underline / colour** (written as the
+correct `PROP:FontStyle` flags + `PROP:FontName`/`PROP:FontColor`) — while the IDE dialog font is shown
+**read-only** (Clarion governs the prompt-sheet face). Switching between open documents restores each one's
+part **and** tab.
+
 To package everything (designer **+** templates **+** skill **+** agent) into one deliverable — .NET is
 bundled in, so nothing needs pre-installing on the target:
 
