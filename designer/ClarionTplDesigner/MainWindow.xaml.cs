@@ -539,10 +539,11 @@ public partial class MainWindow : Window
     {
         if (_component == null) return;
         var lts = LiveTabs();
+        int keep = select >= 0 ? select : cmbTabs.SelectedIndex;   // capture BEFORE the ItemsSource swap clears it
         cmbTabs.ItemsSource = lts.Select(t => t.Title).ToList();
         if (lts.Count == 0) { cmbTabs.SelectedIndex = -1; return; }
-        int idx = select >= 0 ? select : cmbTabs.SelectedIndex;
-        cmbTabs.SelectedIndex = Math.Min(Math.Max(idx, 0), lts.Count - 1);
+        // ForceSelect so Tab_Changed always re-fires (rebuilds _tab + re-renders) even when the index is unchanged.
+        ForceSelect(cmbTabs, Math.Min(Math.Max(keep, 0), lts.Count - 1));
     }
 
     void PopulateParts(int partIdx, int tabIdx)
@@ -550,13 +551,24 @@ public partial class MainWindow : Window
         if (_doc == null) return;
         _parts = _doc.Components.Where(c => c.HasSheet).ToList();
         _pendingTabIdx = tabIdx;
-        // Clear first: WPF preserves a ComboBox selection by VALUE across an ItemsSource swap, so switching to
-        // a document whose part label matches would leave SelectedIndex unchanged and Part_Changed would never
-        // fire (stale canvas). Dropping to -1 guarantees the real selection raises the event and refreshes.
-        cmbParts.SelectedIndex = -1;
+        // WPF preserves a ComboBox selection by VALUE across an ItemsSource swap, so switching to a document
+        // whose part label matches would leave SelectedIndex unchanged and Part_Changed would never fire
+        // (stale canvas). ForceSelect bounces through -1 so the real selection always raises the event.
         cmbParts.ItemsSource = _parts.Select(PartLabel).ToList();
-        if (_parts.Count > 0) cmbParts.SelectedIndex = Math.Min(Math.Max(partIdx, 0), _parts.Count - 1);
+        if (_parts.Count > 0) ForceSelect(cmbParts, Math.Min(Math.Max(partIdx, 0), _parts.Count - 1));
         else { cmbParts.SelectedIndex = -1; _component = null; _tab = null; cmbTabs.ItemsSource = null; Render(); }
+    }
+
+    // The designer is driven purely through cmbParts/cmbTabs SelectionChanged handlers.
+    // After swapping a combo's ItemsSource to another document's parts/tabs, WPF can
+    // preserve the selected *value* (e.g. an identically-labelled part) so the index
+    // never changes — and assigning SelectedIndex the value it already holds raises no
+    // event, so Part_Changed/Tab_Changed never run and the canvas keeps showing the
+    // previous template. Bounce through -1 so the handler always fires for `index`.
+    static void ForceSelect(ComboBox cmb, int index)
+    {
+        if (cmb.SelectedIndex == index) cmb.SelectedIndex = -1;
+        cmb.SelectedIndex = index;
     }
 
     string PartLabel(TplComponent c)
@@ -1403,6 +1415,7 @@ public partial class MainWindow : Window
     void Restore(Snapshot snap)
     {
         if (_doc == null) return;
+        int partIdx = cmbParts.SelectedIndex, tabIdx = cmbTabs.SelectedIndex;   // keep the user where they were
         for (int i = 0; i < _doc.Components.Count && i < snap.Tabs.Count; i++)
         {
             _doc.Components[i].Tabs.Clear();
@@ -1417,13 +1430,9 @@ public partial class MainWindow : Window
         foreach (var (v, d) in snap.Guides) _guides.Add(new Guide { Vertical = v, Dlu = d });
 
         _sel = null;
-        if (_component != null)
-        {
-            var lts = LiveTabs(); int ti = cmbTabs.SelectedIndex;
-            _tab = ti >= 0 && ti < lts.Count ? lts[ti] : (lts.Count > 0 ? lts[0] : null);
-        }
-        Render();
-        Select(null);
+        // Rebuild the part/tab selectors from the restored model: an undone tab add/delete changes the
+        // tab LIST, not just its contents, so the dropdowns, canvas and panels must all re-sync.
+        PopulateParts(partIdx, tabIdx);
     }
 
     // Drag/resize gestures: capture once at the start, commit only if something actually changed.
@@ -1930,7 +1939,7 @@ public partial class MainWindow : Window
         cmbTabs.ItemsSource = LiveTabs().Select(t => t.Title).ToList();
         int want = _pendingTabIdx; _pendingTabIdx = 0;
         var lts = LiveTabs();
-        if (lts.Count > 0) cmbTabs.SelectedIndex = Math.Min(Math.Max(want, 0), lts.Count - 1);
+        if (lts.Count > 0) ForceSelect(cmbTabs, Math.Min(Math.Max(want, 0), lts.Count - 1));
         else { _tab = null; Render(); }
     }
 
@@ -1950,6 +1959,8 @@ public partial class MainWindow : Window
     {
         if (!_ready) return;
         PopulateOutline();            // keep the structure tree in step with the model
+        if (miViewProblems?.IsChecked == true) Validate();        // keep the Problems panel in step (only when open)
+        if (miViewSymbols?.IsChecked == true) PopulateSymbols();  // keep the Symbols browser in step (only when open)
         RefreshLiveSource();          // keep the live source in step with the model
         canvas.Children.Clear();
         _chips.Clear();
@@ -3234,7 +3245,7 @@ public partial class MainWindow : Window
     void Problems_Toggle(object s, RoutedEventArgs e)
     {
         if (anchProblems == null) return;
-        if (miViewProblems.IsChecked) { anchProblems.Show(); anchProblems.IsActive = true; }
+        if (miViewProblems.IsChecked) { anchProblems.Show(); anchProblems.IsActive = true; Validate(); }   // refresh on open
         else anchProblems.Hide();
     }
 
