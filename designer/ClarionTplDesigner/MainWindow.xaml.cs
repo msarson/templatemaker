@@ -2704,13 +2704,12 @@ public partial class MainWindow : Window
         };
     }
 
-    // The numeric default(...) on a prompt's source line, if any (used to decode KEYCODE prompts).
+    // The numeric default(...) on a prompt, if any (used to decode KEYCODE prompts). Read from the parsed
+    // element so it works for #INSERT'd controls sourced from another file.
     int? PromptDefaultInt(TplElement el)
     {
-        var src = _previewLines ?? CurrentFile()?.Lines;
-        if (src == null || el.LineIndex < 0 || el.LineIndex >= src.Length) return null;
-        var m = Regex.Match(src[el.LineIndex], @"default\(\s*(\d+)\s*\)", RegexOptions.IgnoreCase);
-        return m.Success && int.TryParse(m.Groups[1].Value, out var v) ? v : null;
+        var d = el.DefaultExpr.Trim().Trim('\'');
+        return int.TryParse(d, out var v) ? v : null;
     }
 
     // ---------- images ----------
@@ -3952,8 +3951,9 @@ public partial class MainWindow : Window
         }
         if (_drag == Drag.Guide && _dragGuide != null && InRulerZone(e.GetPosition(scroller)))
             DeleteGuide(_dragGuide);
-        else if (_drag == Drag.Element && !_dragLabel && _dragEl != null && !_dragEl.IsContainer && _selection.Count <= 1)
-            TryReparent(_dragEl);            // dropping a single control may move it in/out of a group box
+        else if (_drag == Drag.Element && _dragMoved && !_dragLabel && _dragEl != null && !_dragEl.IsContainer && _selection.Count <= 1)
+            TryReparent(_dragEl);            // dropping a *dragged* single control may move it in/out of a group box
+                                             // (_dragMoved guard: a plain click must never reparent or dirty anything)
         bool wasElementGesture = _drag is Drag.Element or Drag.Resize;
         ClearSmartGuides();
         canvas.ReleaseMouseCapture();
@@ -3990,9 +3990,21 @@ public partial class MainWindow : Window
     void TryReparent(TplElement el)
     {
         double cx = el.LX + el.LW / 2, cy = el.LY + el.LH / 2;     // the control's centre
-        TplElement newParent = DeepestBoxAt(cx, cy, el) ?? _tab!;
-        if (newParent == null || newParent == el.Parent) return;
-        Reparent(el, newParent);
+        TplElement newBox = DeepestBoxAt(cx, cy, el) ?? _tab!;
+        // Compare against the control's current enclosing BOX, not its immediate Parent: a control can be
+        // nested in a non-box wrapper (#ENABLE / #BUTTON) inside a box. If it hasn't crossed into a different
+        // box, leave it exactly where it is — including that #ENABLE membership. (Comparing to Parent would
+        // always see box != #ENABLE and wrongly yank the control out of the enable. See issue #10.)
+        if (newBox == EnclosingBox(el)) return;
+        Reparent(el, newBox);
+    }
+
+    // The nearest ancestor #BOXED, or the tab if the control sits in no box. Skips #ENABLE/#BUTTON wrappers.
+    TplElement EnclosingBox(TplElement el)
+    {
+        for (var p = el.Parent; p != null; p = p.Parent)
+            if (p.Kind == TplKind.Boxed) return p;
+        return _tab!;
     }
 
     TplElement? DeepestBoxAt(double x, double y, TplElement exclude)
@@ -4102,12 +4114,13 @@ public partial class MainWindow : Window
         }
     }
 
+    // The origin an element's AT(x,y) resolves against — must mirror Layout: the nearest enclosing
+    // #BOXED,SECTION, else the window baseline (0,0). Plain boxes don't rebase child coordinates.
     (double, double) FrameOrigin(TplElement el)
     {
-        var p = el.Parent;
-        while (p != null && p.Kind != TplKind.Boxed && p.Kind != TplKind.Tab) p = p.Parent;
-        if (p == null || p.Kind == TplKind.Tab) return (0, 0);
-        return (p.LX, p.LY);
+        for (var p = el.Parent; p != null; p = p.Parent)
+            if (p.Kind == TplKind.Boxed && p.Section) return (p.LX, p.LY);
+        return (0, 0);
     }
 
     // ---------- resize handles ----------
