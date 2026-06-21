@@ -152,6 +152,21 @@
             <MenuItem Header="_About Clarion Template Designer" Click="About_Click"/>
         </MenuItem>
       </Menu>
+
+      <!-- Top-level axis: one tab per open template SET (AnyFont, StringTheory, …). Sits directly under the
+           menu so every toolbar/view below is scoped to the selected template. Switching re-points every
+           view (designer, source, outline, …). -->
+      <Border x:Name="docTabBar" DockPanel.Dock="Top" Background="#E1E5EA"
+              BorderBrush="#C4CCD6" BorderThickness="0,0,0,1" Visibility="Collapsed">
+          <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+              <StackPanel Orientation="Horizontal">
+                  <StackPanel x:Name="docTabs" Orientation="Horizontal" Margin="4,0,0,0"/>
+                  <Button x:Name="btnNewDoc" Content="+" Click="Open_Click" Width="22" Height="20"
+                          Margin="3,3,0,3" Padding="0" ToolTip="Open another template…"/>
+              </StackPanel>
+          </ScrollViewer>
+      </Border>
+
       <!-- Fixed (non-movable) command bar -->
       <Border DockPanel.Dock="Top" Background="#F3F5F8" BorderBrush="#D7DCE3" BorderThickness="0,0,0,1">
         <StackPanel Orientation="Horizontal" Margin="5,3" VerticalAlignment="Center">
@@ -237,18 +252,6 @@
         <StatusBar DockPanel.Dock="Bottom">
             <TextBlock x:Name="status" Text="Open a .tpl to begin.  Drag from a ruler to add a guide; double-click a guide to delete it."/>
         </StatusBar>
-
-        <!-- one tab per open template; switching re-points every view below (designer, source, outline, …) -->
-        <Border x:Name="docTabBar" DockPanel.Dock="Top" Background="#E1E5EA"
-                BorderBrush="#C4CCD6" BorderThickness="0,0,0,1" Visibility="Collapsed">
-            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-                <StackPanel Orientation="Horizontal">
-                    <StackPanel x:Name="docTabs" Orientation="Horizontal" Margin="4,0,0,0"/>
-                    <Button x:Name="btnNewDoc" Content="+" Click="Open_Click" Width="22" Height="20"
-                            Margin="3,3,0,3" Padding="0" ToolTip="Open another template…"/>
-                </StackPanel>
-            </ScrollViewer>
-        </Border>
 
         <avalonDock:DockingManager x:Name="dockMgr">
           <avalonDock:LayoutRoot>
