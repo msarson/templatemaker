@@ -51,6 +51,8 @@ templates/                      # ready-to-register Clarion templates
     myFontChanger.tpl
   myBackground/                 #   global default + per-window background color/image (see below)
     myBackground.tpl
+  myQR/                         #   QR code into an image control, auto-refresh (see below)
+    myQR.tpl
 designer/ClarionTplDesigner/    # WPF visual designer for the prompt UI (see below)
 installer/                      # builds the installer + a portable single-file exe
 README.md
@@ -169,6 +171,24 @@ chooser on `EVENT:AlertKey`). At run time a solid color is set with `0{PROP:Colo
 INI name, generate and build. Full programmer's documentation (prompts, generated code, embed points,
 the `myBackApply`/`myBackChoose` helper API, and the runtime properties it uses) is in
 [`docs/myBackground-template.html`](docs/myBackground-template.html).
+
+### `templates/myQR/` — QR code into an image control
+A self-contained ABC **procedure** extension that renders a **QR code** into an `IMAGE` control on a window.
+The QR **value** can be a design-time **literal** (a quoted string) **or any Clarion variable/expression** you
+change in code (e.g. `Cus:Email`, `loc:URL`) — it's emitted verbatim, so it's read at run time. With
+**auto-refresh** on, a window timer watches the value and reloads the QR whenever it changes; you can also
+force a redraw anytime with `DO myQRRefresh`. Prompts: image control, value, size, error-correction (L/M/Q/H),
+quiet-zone margin, and the auto-refresh toggle/poll.
+
+Since Clarion has no built-in QR encoder, the PNG is fetched from the free public web service
+**`api.qrserver.com`** (goqr.me) and loaded into the image with `feq{PROP:Text}=file`. The download uses
+**`curl.exe`** (ships with Windows 10/11), launched **hidden and synchronously** via `CreateProcessA` +
+`WaitForSingleObject` (no console flash; the PNG is on disk before the image loads). It's self-contained (a
+URL-encoder + a download/load helper in the program module; no external `.inc`/`.clw`). **Privacy/internet
+caveat:** the value is sent over HTTPS to that third-party service every render and an internet connection is
+required — don't encode secrets, or repoint the helper at your own QR endpoint / a local library for
+offline use. Register it, add **myQR - QR code into an image control** to a window procedure's Extensions,
+pick a sized IMAGE control, set the value, generate and build.
 
 ## Install
 
