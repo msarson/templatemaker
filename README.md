@@ -270,6 +270,16 @@ pwsh installer\build-portable.ps1    # -> run\ClarionTemplateDesigner.exe (porta
 
 See `installer/README.md` for what each option installs.
 
+### QR encoder core (`designer/QrCodeCore/`)
+
+`designer/QrCodeCore/` is a small, dependency-free **.NET 9** QR-code encoder (versions 1–10, all four
+error-correction levels) written as a portable reference for an upcoming *offline* QR template that draws
+the symbol module-by-module with `BOX` primitives — the same approach as `myPie/` — so no internet round-trip
+is needed (unlike `templates/myQR/`, which fetches a PNG via `curl`). The encoder is developed test-first:
+`designer/QrCodeCore.Tests/` round-trips every encode through an independent decoder (ZXing.Net) across all
+versions and ECC levels and pins the Reed–Solomon stage to the ISO/IEC 18004 worked example. Run the tests
+with `dotnet test designer/QrCodeCore.Tests`.
+
 ## How to use
 
 - Ask Claude to build/edit a Clarion template and it will pick up the `clarion-template` skill

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Pure-logic reference implementation of QR encoding. No UI / no WPF. The verified algorithm here is
+         the source of truth to port to a Clarion drawing template (BOX-per-module, like myPie). -->
+  </PropertyGroup>
+
+</Project>
