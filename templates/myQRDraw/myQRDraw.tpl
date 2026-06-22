@@ -11,10 +11,16 @@
 #!               (byte mode, versions 1-10, ECC L/M/Q/H, automatic version +
 #!               mask) and the QRDraw() helper. Add once, globally.
 #!
-#!  myQRDraw     (PROCEDURE extension) - dropped on a window. Encodes a value
+#!  myQRDraw     (PROCEDURE extension) - dropped on a WINDOW. Encodes a value
 #!               (literal or code-driven) and draws it into a chosen IMAGE
 #!               control, redrawing on OpenWindow / resize. Exposes a
 #!               myQRDrawRepaint ROUTINE so you can change the value at run time.
+#!
+#!  myQRDrawReport (PROCEDURE extension) - dropped on a REPORT. Draws the code
+#!               into an IMAGE control in a band as each record prints. Reports
+#!               do NOT use window events: drawing happens in the Before-Print
+#!               embed with SETTARGET(Report) (the band's own target), not on
+#!               OpenWindow. Use THIS extension on reports, myQRDraw on windows.
 #!
 #!  This is a line-for-line port of the C# reference encoder in
 #!  designer/QrCodeCore (validated by decoding with ZXing). Its module output
@@ -96,6 +102,7 @@ QR:NAlign            LONG
 #!-----------------------------------------------------------------------------
 #AT(%GlobalMap),WHERE(%myQRDrawDisable=0)
 QRDraw(SIGNED,*CSTRING,LONG,LONG,LONG,LONG)
+QRPaint(SIGNED,LONG,LONG,LONG)
 QRBuildMatrix(*CSTRING,LONG),BYTE
 QRInit()
 QRtbl(LONG,LONG,LONG,LONG,LONG,LONG,LONG)
@@ -609,8 +616,12 @@ ac       LONG
   QRFormatInfo(QR:BestMask)                                   ! final format info
   RETURN 1
 #!
-#!=== the public helper: encode + draw into an IMAGE control ==================
-QRDraw  PROCEDURE(SIGNED pImageFeq,*CSTRING pValue,LONG pEcc,LONG pDark,LONG pLight,LONG pQuiet)
+#!=== paint the ALREADY-BUILT matrix into a control, in the CURRENT target =====
+#! Target-agnostic: the caller does the SETTARGET (a window IMAGE control, or a
+#! REPORT band). Reads the control's position+size with one GETPOSITION, centres
+#! the symbol, fills a light field then draws each dark module as a BOX. Shared
+#! by the window helper (QRDraw) and the report extension.
+QRPaint  PROCEDURE(SIGNED pImageFeq,LONG pDark,LONG pLight,LONG pQuiet)
 ImgX  LONG
 ImgY  LONG
 imgW  LONG
@@ -625,17 +636,13 @@ offY  LONG
 r     LONG
 c     LONG
   CODE
-  IF QRBuildMatrix(pValue,pEcc) = 0 THEN RETURN.             ! too large - leave the control unchanged
   q = pQuiet; IF q < 0 THEN q = 0.
   n = QR:N; side = n + 2*q
-  SETTARGET(,pImageFeq)                                       ! draw into the IMAGE control
-  GETPOSITION(pImageFeq,ImgX,ImgY)                            ! window-relative (issue #5)
-  imgW = pImageFeq{PROP:Width}; imgH = pImageFeq{PROP:Height}
+  GETPOSITION(pImageFeq,ImgX,ImgY,imgW,imgH)                  ! position AND size, target-relative
   cell = INT(imgW/side); IF INT(imgH/side) < cell THEN cell = INT(imgH/side).
-  IF cell < 1 THEN cell = 1.                                  ! at least 1 dialog unit per module
+  IF cell < 1 THEN cell = 1.                                  ! at least 1 unit per module
   qpix = cell*side
   offX = ImgX + INT((imgW-qpix)/2); offY = ImgY + INT((imgH-qpix)/2)   ! centre in the control
-  BLANK                                                       ! wipe prior graphics (no resize artifacts)
   SETPENCOLOR(pLight)
   BOX(ImgX,ImgY,imgW,imgH,pLight)                             ! light field (quiet zone is light too)
   SETPENCOLOR(pDark)
@@ -646,6 +653,14 @@ c     LONG
       END
     END
   END
+#!
+#!=== the window helper: encode + draw into a window IMAGE control =============
+QRDraw  PROCEDURE(SIGNED pImageFeq,*CSTRING pValue,LONG pEcc,LONG pDark,LONG pLight,LONG pQuiet)
+  CODE
+  IF QRBuildMatrix(pValue,pEcc) = 0 THEN RETURN.             ! too large - leave the control unchanged
+  SETTARGET(,pImageFeq)                                       ! draw into the IMAGE control (window-relative, issue #5)
+  BLANK                                                       ! wipe prior graphics (no resize artifacts)
+  QRPaint(pImageFeq,pDark,pLight,pQuiet)
   SETTARGET()                                                 ! restore previous target
 #ENDAT
 #!#############################################################################
@@ -732,6 +747,85 @@ myQRDrawRepaint ROUTINE
     QRDraw(%myQRDrawImage, myQRDraw:Value, %myQRDrawEcc, %myQRDrawDark, %myQRDrawLight, %myQRDrawQuiet)
 #ENDIF
   END
+#ENDAT
+#!#############################################################################
+#!  PROCEDURE EXTENSION - myQRDrawReport  (for REPORT procedures)
+#!#############################################################################
+#!  Reports render bands through the print engine, not a window event loop, so
+#!  this draws in the %BeforePrint embed (fires before each DETAIL band prints)
+#!  with SETTARGET(%Report) - the report itself is the draw target, and the
+#!  band/page is current. Put an IMAGE control in the band where you want the
+#!  code (give it a USE/field-equate so GETPOSITION can find it). A code is
+#!  drawn per printed record - point Value at a per-record field (literal or
+#!  variable) for one-QR-per-row, e.g. an order/customer URL.
+#!#############################################################################
+#EXTENSION(myQRDrawReport,'myQRDraw - Draw a QR Code on this REPORT'),PROCEDURE,REQ(myQRDrawGlobal)
+#SHEET
+  #TAB('&General')
+    #BOXED('Options')
+      #PROMPT('&Disable this template',CHECK),%myQRDrawRptDisable,DEFAULT(0),AT(10)
+      #PROMPT('&Image control (in a report band) to draw into:',CONTROL),%myQRDrawRptImage,REQ
+      #PROMPT('&Value:',@s255),%myQRDrawRptValue,DEFAULT('https://www.softvelocity.com')
+      #PROMPT('Value is a &variable / expression (not literal text)',CHECK),%myQRDrawRptValueIsVar,DEFAULT(0),AT(10)
+      #PROMPT('&Error correction level:',DROP('L - Low (most data)[1]|M - Medium[2]|Q - Quartile[3]|H - High (most robust)[4]')),%myQRDrawRptEcc,DEFAULT('2')
+      #PROMPT('&Dark (foreground) color:',COLOR),%myQRDrawRptDark,DEFAULT(00000000H)
+      #PROMPT('&Light (background) color:',COLOR),%myQRDrawRptLight,DEFAULT(00FFFFFFH)
+      #PROMPT('&Quiet-zone modules (border):',SPIN(@n1,0,8,1)),%myQRDrawRptQuiet,DEFAULT(4)
+      #PROMPT('Draw &self-test ("HELLO WORLD", ECC M)',CHECK),%myQRDrawRptSelfTest,DEFAULT(0),AT(10)
+    #ENDBOXED
+  #ENDTAB
+  #TAB('&Instructions')
+    #BOXED('How to use myQRDrawReport')
+      #DISPLAY('1. Add the global "myQRDraw - Global Encoder + Helper"')
+      #DISPLAY('   extension once at the Application level.')
+      #DISPLAY('2. In the Report formatter, drop an IMAGE control into the')
+      #DISPLAY('   DETAIL band (or a band that prints per record) and give it')
+      #DISPLAY('   a USE / field-equate so it can be selected below.')
+      #DISPLAY('3. Add THIS extension (for reports). On a window, use the')
+      #DISPLAY('   plain "myQRDraw" extension instead.')
+      #DISPLAY('4. Pick the image control, set the Value (tick "variable" to')
+      #DISPLAY('   use a per-record field like ORD:URL), ECC, colors, quiet.')
+      #DISPLAY('5. Generate, compile, print/preview - one QR is drawn per')
+      #DISPLAY('   record in the detail band. Scan to verify.')
+      #DISPLAY('')
+      #DISPLAY('Drawing uses SETTARGET(Report) in the Before-Print-Detail')
+      #DISPLAY('embed. If the code lands in the wrong spot, ensure the image')
+      #DISPLAY('is in the detail band; for page-level placement (one QR per')
+      #DISPLAY('page) ask for the page-header variant.')
+    #ENDBOXED
+  #ENDTAB
+#ENDSHEET
+#!-----------------------------------------------------------------------------
+#! Local value buffer (no repaint routine - reports have no event loop; the code
+#! re-encodes from the current field value each time the detail band prints).
+#!-----------------------------------------------------------------------------
+#AT(%DataSection),WHERE(%myQRDrawRptDisable=0 AND %myQRDrawRptImage)
+myQRDrawRpt:Value    CSTRING(512)                            ! the value to encode for this row
+#ENDAT
+#!-----------------------------------------------------------------------------
+#! Draw before each detail band prints. SETTARGET(Report) makes the report the
+#! graphics target; GETPOSITION finds the band image; QRPaint draws into it.
+#!-----------------------------------------------------------------------------
+#AT(%BeforePrint),WHERE(%myQRDrawRptDisable=0 AND %myQRDrawRptImage)
+#IF(%myQRDrawRptSelfTest)
+  myQRDrawRpt:Value = 'HELLO WORLD'                           ! fixed, known-good 21x21 symbol
+  IF QRBuildMatrix(myQRDrawRpt:Value, 2)
+    SETTARGET(%Report)
+    QRPaint(%myQRDrawRptImage, %myQRDrawRptDark, %myQRDrawRptLight, %myQRDrawRptQuiet)
+    SETTARGET()
+  END
+#ELSE
+#IF(%myQRDrawRptValueIsVar)
+  myQRDrawRpt:Value = %myQRDrawRptValue                       ! per-record value (e.g. ORD:URL)
+#ELSE
+  myQRDrawRpt:Value = '%myQRDrawRptValue'                     ! literal text
+#ENDIF
+  IF QRBuildMatrix(myQRDrawRpt:Value, %myQRDrawRptEcc)
+    SETTARGET(%Report)                                       ! the report (band) is the draw target
+    QRPaint(%myQRDrawRptImage, %myQRDrawRptDark, %myQRDrawRptLight, %myQRDrawRptQuiet)
+    SETTARGET()                                              ! restore
+  END
+#ENDIF
 #ENDAT
 #!-----------------------------------------------------------------------------
 #! End of myQRDraw template set

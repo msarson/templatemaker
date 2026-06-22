@@ -72,6 +72,7 @@
     <a href="#selftest" class="h2">Self-test</a>
     <a href="#prompts" class="h2">Prompt reference</a>
     <a href="#runtime" class="h2">Changing it at run time</a>
+    <a href="#reports" class="h2">On a report</a>
     <div class="grp">How it works</div>
     <a href="#arch" class="h2">Architecture</a>
     <a href="#encoder" class="h2">The encoder</a>
@@ -184,6 +185,38 @@
 <span class="k">DO</span> myQRDrawRepaint        <span class="c">! re-encodes and redraws into the image</span></pre>
       <p><code>myQRDrawRepaint</code> simply posts a private event so the redraw happens cleanly inside
         the window's event loop, after which the code is re-encoded from the current variable value.</p>
+    </section>
+
+    <section id="reports">
+      <h2>On a report <a href="#reports" class="top">#</a></h2>
+      <p>Reports are different from windows: their bands are rendered by the <b>print engine</b>, not a
+        window event loop. If you add the plain <b>myQRDraw</b> extension to a report it hooks the
+        <i>progress window</i> — the wrong surface. Use the separate <b>myQRDrawReport</b> extension instead.</p>
+      <ol>
+        <li>Add the <b>global</b> extension once (it carries the same encoder).</li>
+        <li>In the Report formatter, drop an <b>IMAGE</b> control into the <b>detail</b> band (or any band
+          that prints per record) and give it a <b>USE / field-equate</b> so it can be selected.</li>
+        <li>Add <b>“myQRDraw - Draw a QR Code on this REPORT”</b>, pick that image control, and set the
+          Value (tick <b>variable</b> to use a per-record field such as <code>ORD:URL</code>), ECC, colors
+          and quiet zone.</li>
+        <li>Print/preview — one QR is drawn <b>per record</b> in the detail band.</li>
+      </ol>
+      <p>Under the hood the code is drawn in the <b>Before-Print-Detail</b> embed with
+        <code>SETTARGET(Report)</code> (the report/band is the graphics target), then
+        <code>GETPOSITION</code> on the band image and the same <code>QRPaint()</code> routine the window
+        path uses — so the encoder and drawing are shared; only the <i>target</i> and <i>timing</i> differ.</p>
+      <table>
+        <tr><th>&nbsp;</th><th>myQRDraw (window)</th><th>myQRDrawReport (report)</th></tr>
+        <tr><td>When it draws</td><td><code>EVENT:OpenWindow</code> / <code>Sized</code></td><td>Before each detail band prints</td></tr>
+        <tr><td>Draw target</td><td><code>SETTARGET(,?image)</code></td><td><code>SETTARGET(Report)</code></td></tr>
+        <tr><td>How often</td><td>On open + each resize</td><td>Once per printed record</td></tr>
+        <tr><td>Repaint routine</td><td><code>myQRDrawRepaint</code></td><td>n/a (re-encodes per row)</td></tr>
+      </table>
+      <div class="callout warn"><b>Placement &amp; verification</b>
+        Drawing onto report bands is timing-sensitive — verify on your machine by ticking <b>self-test</b>
+        on the report extension (it draws the fixed “HELLO WORLD” code each row) and scanning a printout
+        or preview. For a single QR <i>per page</i> rather than per record (e.g. in a page header), ask for
+        the page-header variant of the embed.</div>
     </section>
 
     <section id="arch">

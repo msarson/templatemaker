@@ -201,6 +201,11 @@ design-time **literal** or any **Clarion variable/expression** (change it and `D
 image control, value, ECC level (L/M/Q/H), dark/light colors, quiet-zone width, and a **self-test** that
 draws a fixed `HELLO WORLD` symbol so you can confirm the encoder works by scanning it.
 
+**Reports** render bands through the print engine, not window events, so a separate **myQRDrawReport**
+extension handles them: drop an IMAGE control in the detail band, add the extension, and a code is drawn
+**per record** in the *Before-Print-Detail* embed via `SETTARGET(Report)` (the window extension and the
+report extension share the same encoder and `QRPaint()` drawing — only the draw target and timing differ).
+
 The encoder (byte mode, **versions 1–10**, automatic version + mask) is a line-for-line port of the
 ZXing-validated C# reference in [`designer/QrCodeCore/`](designer/QrCodeCore/); its exact `HELLO WORLD`/ECC-M
 matrix is pinned by a golden test, and that is the same symbol the self-test draws. Choose myQRDraw for
