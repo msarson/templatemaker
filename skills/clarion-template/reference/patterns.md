@@ -352,3 +352,46 @@ Give an explicit mode with a `CHECK`, default to literal so the obvious case jus
 ```
 Caveat to document: a literal containing a `'` needs it doubled (`''`) or use variable mode — the template
 can't safely escape arbitrary embedded quotes at generate time.
+
+## P14 — Porting a numeric algorithm to runtime Clarion (the integer-math traps)
+
+When you emit a non-trivial computation in Clarion (a hash, a CRC, an encoder — e.g. the `myQRDraw`
+template's QR encoder ported from a C# reference), four language differences bite. Get them wrong and the
+output is silently wrong, not a compile error.
+
+1. **Clarion ROUNDS on assignment to an integer; it does not truncate.** `n = 7/2` gives **4**, not 3.
+   Every place the source language did integer/floor division, wrap it: `n = INT(7/2)`. This includes
+   right-shift-by-division, `bit/8`, `r/2`, percentage math — anywhere a fractional result is assigned to a
+   LONG/BYTE.
+
+2. **Modulus: avoid the literal `%`.** Clarion *has* a `%` modulus operator, but in a template every emitted
+   `%` must be escaped `%%` (the parser reads `%` as a symbol start — unescaped, the template won't even
+   register). Sidestep the whole trap with a one-line helper and call it everywhere:
+   ```
+   QRMod  PROCEDURE(LONG a,LONG b)        #! a MOD b, no '%' in the emitted source
+     CODE
+     RETURN a - INT(a/b)*b
+   ```
+   Now no emitted line contains `%`, so there is nothing to escape and nothing to forget.
+
+3. **Bit operations are functions, not operators.** There is no `<<`, `>>`, `&`, `|`, `^`. Use
+   `BSHIFT(v,n)` (n **positive = left**, **negative = right**), `BAND`, `BOR`, `BXOR`. They nest:
+   `(x>>9)&1` → `BAND(BSHIFT(x,-9),1)`. Hex literals must start with a digit and end in `h`: `0x11D` →
+   `011Dh`, `0xEC` → `0ECh`.
+
+4. **0-based algorithm vs 1-based Clarion arrays.** Clarion `DIM(n)` is indexed `1..n`. Keep the
+   algorithm's coordinates 0-based (so every modulus/shift formula is copied verbatim from the source) and
+   isolate the offset in tiny accessors — `QRGetM(r,c) → RETURN QR:Mod[r+1,c+1]` / `QRSet(r,c,v)`. Mixing
+   the two conventions inline is the #1 source of off-by-one corruption.
+
+Verifying a port you **cannot run** (you can't drive AppGen): anchor it to a runnable oracle.
+- Keep the reference implementation in a tested project (here, `designer/QrCodeCore` validated by ZXing).
+- **Pin a golden vector** — the exact expected output for one fixed input — as an automated test.
+- Build a **self-test option** into the template that produces that same fixed output, so the developer can
+  *observe* correctness end-to-end (for myQRDraw: a "draw HELLO WORLD" toggle whose 21×21 symbol equals the
+  golden matrix — scanning it confirms the whole pipeline on the target machine).
+
+Also: a short-form `%GlobalMap` prototype carries the return type (`QRGfMul(LONG,LONG),LONG`); the matching
+body **omits** it (`QRGfMul PROCEDURE(LONG a,LONG b)`) — confirmed against `libsrc\win\SystemString.clw`.
+
+Reference: the `myQRDraw` template (offline QR encoder + `BOX` drawing; companion to the online `myQR`).

@@ -139,6 +139,10 @@ per-procedure, project files, export lists, custom embeds).
   at the offending line. Write `x %% 7` (emits `x % 7`); the corpus does this for the modulus operator
   (`ABUPDATE.TPW:866`: `SELF.RecordsProcessed %% %RecordsToCheckpoint`). Simplest for comments: avoid `%`
   (write "MOD") rather than escaping. Beware trailing notes like `(... literal %)` — that bare `%` also trips it.
+- **Porting numeric code? Clarion ROUNDS on integer assignment** (`n=7/2` → 4), bit ops are functions
+  (`BSHIFT`/`BAND`/`BOR`/`BXOR`, not `<< >> & | ^`), and arrays are 1-based. Wrap every truncating divide in
+  `INT()`, do modulus via a `QRMod()`-style helper (so no literal `%` to escape), and validate the un-runnable
+  port against a tested oracle + a golden vector + an in-template self-test. See **patterns.md P14**.
 - **`#AT` blocks need `WHERE()` guards** so disabled templates emit nothing. Always honor your own
   `%...Disable` prompt on every `#AT`.
 - **`PRIORITY(n)` orders multiple `#AT`s at the same embed** (lower runs earlier; ABC uses ~2000–8000).
