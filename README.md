@@ -294,6 +294,17 @@ ZXing-validated [`designer/QrCodeCore/`](designer/QrCodeCore/) and pinned by a g
 loop, and the report control picker lists the report's own controls). The `clarion-template` skill gained
 the hard-won lessons behind it (Clarion integer-rounding, `%`-free modulus, window-vs-report drawing).
 
+**myQRDraw as a class + a beta test plan (v2.13).** The encoder moved into a self-contained Clarion **class**,
+`QRCodeClass.inc`/`.clw` (stored in **ANSI**), so it compiles in its own module instead of filling the
+program's global procedure area — the template just `INCLUDE`s it and declares one `QRCodeObj` instance,
+made **multi-DLL aware** (defined in the root DLL, `EXTERNAL` elsewhere, exported — ABC's `%DefaultExternal`
+pattern). The class carries a module-level `MAP` (required, else `BUILTINS.CLW` calls like `LEN`/`BOX`/
+`SETTARGET` fail), `Construct`/`Destruct`, and `CLIP`s the value so a space-padded fixed-length field no
+longer inflates into a giant dense symbol. The `clarion-template` skill captured the whole self-contained-CLASS
+recipe. Also new: a multi-sheet **beta test plan** at
+[`testing/Clarion-Template-Maker-Beta-Test-Plan.xlsx`](testing/Clarion-Template-Maker-Beta-Test-Plan.xlsx)
+(53 test cases + roster + bug log) for handing the toolkit to testers.
+
 To package everything (designer **+** templates **+** skill **+** agent) into one deliverable — .NET is
 bundled in, so nothing needs pre-installing on the target:
 
