@@ -320,6 +320,16 @@ recipe. Also new: a multi-sheet **beta test plan** at
 [`testing/Clarion-Template-Maker-Beta-Test-Plan.xlsx`](testing/Clarion-Template-Maker-Beta-Test-Plan.xlsx)
 (53 test cases + roster + bug log) for handing the toolkit to testers.
 
+**myBarcodeGen — nine barcode symbologies (v2.14).** A new offline barcode template covering the **1D** codes
+**Code 39, Code 128** (auto B/C), **Interleaved 2 of 5, EAN-13, UPC-A** and the **2D** codes **QR, Data Matrix,
+PDF417, Aztec** — all encoded at run time and drawn with `BOX`es (no internet/curl), on **windows and reports**,
+chosen from one drop-list. Five self-contained ANSI Clarion classes (`BarcodeClass`, `QRCodeClass`,
+`DataMatrixClass`, `Pdf417Class`, `AztecClass`) port a ZXing-validated C# reference,
+[`designer/BarcodeCore/`](designer/BarcodeCore/) with **42 round-trip tests**. Reed–Solomon spans four fields
+(GF(256) 0x11D/0x12D, the prime field GF(929), and GF(2ⁿ) for Aztec); PDF417's 3×929 pattern table is packed
+into the class. Full developer's manual in
+[`docs/myBarcodeGen-template.html`](docs/myBarcodeGen-template.html).
+
 To package everything (designer **+** templates **+** skill **+** agent) into one deliverable — .NET is
 bundled in, so nothing needs pre-installing on the target:
 
