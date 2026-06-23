@@ -272,11 +272,23 @@ When a template needs real logic (an encoder, a parser), put it in a **CLASS** i
 the methods then compile in their own module and the program's global procedure area stays lean. Wiring that
 actually compiles (corpus: CapeSoft `StringTheory`/`Reflection`, ABC `ABFILE`):
 
-- **The `.clw` header MUST be bare `MEMBER` — NOT `MEMBER()`.** Empty parens declare "member of *no*
-  program" and **suppress the automatic `BUILTINS.CLW` include**, so every prototyped runtime function
-  (`LEN`, `BOX`, `SETTARGET`, `GETPOSITION`, `SETPENCOLOR`, `BLANK`, `CLIP`, …) fails with **"Unknown
-  function/procedure label"** — while intrinsic keywords (`INT`, `ABS`, `BSHIFT`, `BAND`, `CHOOSE`) still
-  compile, which makes the cause look mysterious. Header: `  MEMBER` then `  INCLUDE('MyClass.INC'),ONCE`.
+- **The `.clw` MUST have a module-level `MAP`/`END` — this is the non-obvious one.** The compiler folds the
+  `BUILTINS.CLW` prototypes into the module's `MAP`; with **no `MAP`, there is nowhere for them to resolve**,
+  so every prototyped runtime function (`LEN`, `BOX`, `SETTARGET`, `GETPOSITION`, `SETPENCOLOR`, `BLANK`,
+  `CLIP`, …) fails with **"Unknown function/procedure label"** — while intrinsic keywords (`INT`, `ABS`,
+  `BSHIFT`, `BAND`, `CHOOSE`) still compile, which makes the cause look mysterious. An **empty** `MAP`/`END`
+  is enough (the builtins are added implicitly). Every shipped class `.clw` (StringTheory, ABFILE, ABERROR,
+  ABWINDOW) carries one. Header:
+  ```
+    MEMBER
+    MAP
+    END
+    INCLUDE('MyClass.INC'),ONCE
+  ```
+  Use bare `MEMBER` (no parens — the standard form for a class module added via LINK).
+- **Give the class `Construct`/`Destruct` if it owns reference members** (`&Queue`, `&Class`, …) to
+  `NEW`/`DISPOSE` them. A class of only simple/array members doesn't need them; `Construct` is still a handy
+  place to do one-time setup (e.g. build lookup tables at instance startup).
 - **Self-contained link:** declare the class `MyClass CLASS,TYPE,MODULE('MyClass.CLW'),LINK('MyClass.CLW')`.
   The `LINK` adds the `.clw` to the project automatically — no manual project edit. Keep methods **non-VIRTUAL**
   so calls dispatch statically (each target links its own copy of the code; no method export list to maintain).
