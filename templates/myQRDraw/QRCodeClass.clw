@@ -10,12 +10,25 @@
 !
 !  This file MUST be stored in ANSI (not UTF-8).
 ! ============================================================================
-  MEMBER                                  ! bare MEMBER (no parens) so the compiler auto-includes BUILTINS.CLW
-                                          ! (LEN, BOX, SETTARGET, GETPOSITION, SETPENCOLOR, BLANK, ...).
-                                          ! MEMBER() with empty parens means "member of no program" and
-                                          ! suppresses that include, making those library calls "Unknown".
+  MEMBER
+
+  MAP                                     ! A module-level MAP is REQUIRED. The compiler folds the
+  END                                     ! BUILTINS.CLW prototypes (LEN, BOX, SETTARGET, GETPOSITION,
+                                          ! SETPENCOLOR, BLANK, ...) into the module's MAP; with NO MAP
+                                          ! they have nowhere to resolve and every such call is reported
+                                          ! "Unknown function/procedure label". Every self-contained class
+                                          ! .clw (StringTheory, ABFILE, ABERROR, ABWINDOW) carries this MAP.
 
   INCLUDE('QRCodeClass.INC'),ONCE
+
+!=== construct / destruct (auto-run for the instance) ========================
+QRCodeClass.Construct PROCEDURE()
+  CODE
+  SELF.Init()                                                ! build the GF + capacity tables once, at startup
+
+QRCodeClass.Destruct PROCEDURE()
+  CODE
+  ! no reference members to dispose - all state is simple arrays/scalars
 
 !=== one-time tables: GF(256), finder patterns, capacity table ===============
 QRCodeClass.Init PROCEDURE()

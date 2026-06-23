@@ -60,6 +60,9 @@ BlkLenArr          LONG,DIM(8)                                ! data length of e
 NumBlocks          LONG
 Align              LONG,DIM(3)                                ! alignment-pattern centres
 NAlign             LONG
+! ---- construct / destruct (auto-run) ---------------------------------------
+Construct          PROCEDURE
+Destruct           PROCEDURE
 ! ---- public methods --------------------------------------------------------
 Draw               PROCEDURE(SIGNED pImageFeq,*CSTRING pValue,LONG pEcc,LONG pDark,LONG pLight,LONG pQuiet)
 BuildMatrix        PROCEDURE(*CSTRING pValue,LONG pEcc),BYTE
