@@ -355,7 +355,9 @@ ac       LONG
   CODE
   SELF.Init()
   SELF.Ecc = pEcc
-  SELF.DLen = LEN(pValue)
+  SELF.DLen = LEN(CLIP(pValue))                              ! CLIP: ignore trailing spaces so a space-padded
+                                                             ! fixed-length STRING (or ENTRY USE var) doesn't
+                                                             ! inflate the byte count into a huge dense symbol
   SELF.Ver = 0                                               ! ---- choose the smallest version that fits
   LOOP v = 1 TO 10
     SELF.TotalData = SELF.TG1B[v,SELF.Ecc]*SELF.TG1D[v,SELF.Ecc] + SELF.TG2B[v,SELF.Ecc]*SELF.TG2D[v,SELF.Ecc]
