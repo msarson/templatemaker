@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>myGauge — Programmer's Documentation</title>
+<style>
+  :root{
+    --blue:#0A66C2; --blue-d:#084d93; --navy:#0E1A2B; --navy-2:#16263c;
+    --ink:#22303f; --muted:#6b7785; --line:#e3e8ef; --bg:#f5f7fa;
+    --card:#ffffff; --green:#1e7c5a; --amber:#9a6a12; --amber-bg:#fff7e8;
+    --green-bg:#eef8f3; --blue-bg:#eef4fc; --red-bg:#fcecec; --red:#b23a2e;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;font:15px/1.65 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);background:var(--bg)}
+  a{color:var(--blue);text-decoration:none} a:hover{text-decoration:underline}
+  .wrap{display:flex;min-height:100vh}
+  nav{width:280px;flex:0 0 280px;background:linear-gradient(180deg,var(--navy),var(--navy-2));
+    color:#cdd8e6;position:sticky;top:0;height:100vh;overflow-y:auto;padding:22px 0}
+  nav .brand{padding:0 22px 16px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:10px}
+  nav .brand h1{font-size:16px;margin:0;color:#fff} nav .brand span{font-size:12px;color:#8aa0bb}
+  nav a{display:block;color:#b9c7d8;padding:6px 22px;font-size:13.5px;border-left:3px solid transparent}
+  nav a:hover{background:rgba(255,255,255,.05);color:#fff;text-decoration:none}
+  nav a.h2{padding-left:34px;font-size:13px;color:#9fb2c8}
+  nav .grp{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:#6e85a1;
+    padding:14px 22px 4px;font-weight:700}
+  main{flex:1;min-width:0}
+  header.hero{background:linear-gradient(120deg,#0c2a4d,var(--blue));color:#fff;padding:46px 52px 38px}
+  header.hero h1{margin:0 0 6px;font-size:30px;letter-spacing:-.3px}
+  header.hero p{margin:0;font-size:15.5px;color:#dbe8f8;max-width:780px}
+  header.hero .pill{display:inline-block;margin-top:16px;background:rgba(255,255,255,.16);
+    padding:4px 12px;border-radius:20px;font-size:12.5px}
+  .body{padding:14px 52px 80px;max-width:940px}
+  section{padding:22px 0;border-bottom:1px solid var(--line)} section:last-child{border-bottom:none}
+  h2{font-size:21px;margin:14px 0 10px;color:var(--navy);scroll-margin-top:14px}
+  h3{font-size:16px;margin:20px 0 6px;color:var(--blue-d)}
+  p{margin:9px 0} ul,ol{margin:8px 0;padding-left:22px} li{margin:4px 0}
+  code,kbd,pre{font-family:"Cascadia Code",Consolas,monospace}
+  code{background:#eef1f5;padding:1px 6px;border-radius:4px;font-size:13px;color:#1d3b5e}
+  kbd{background:#1d2a3a;color:#e7eef7;padding:2px 7px;border-radius:5px;font-size:12px;
+    border:1px solid #324558;box-shadow:0 1px 0 #0b1420}
+  pre{background:#0f1d2e;color:#dbe6f2;padding:16px 18px;border-radius:10px;overflow:auto;
+    font-size:13px;line-height:1.55;margin:12px 0}
+  pre .c{color:#7fa6c9} pre .k{color:#79c0ff} pre .s{color:#7ee0b8} pre .t{color:#ffd591}
+  .callout{border-radius:8px;padding:12px 16px;margin:14px 0;font-size:14px;border:1px solid}
+  .tip{background:var(--green-bg);border-color:#bfe3d3;color:#155}
+  .note{background:var(--blue-bg);border-color:#c5dcf6;color:#13456f}
+  .warn{background:var(--amber-bg);border-color:#ecd9a6;color:#6f5210}
+  .danger{background:var(--red-bg);border-color:#e6b8b2;color:#7c241b}
+  .callout b{display:block;margin-bottom:2px}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.5px}
+  th,td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#f0f4f9;color:var(--navy);font-weight:600}
+  tr:hover td{background:#fafcff}
+  .lead{font-size:16px;color:#3a4756}
+  footer{padding:24px 52px;color:var(--muted);font-size:13px}
+  .top{font-size:12px;color:var(--muted);float:right}
+  .filetree{font-family:"Cascadia Code",Consolas,monospace;font-size:13px;background:#fff;
+    border:1px solid var(--line);border-radius:10px;padding:14px 18px;line-height:1.7;color:#37485a}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:14px 0}
+  .gcard{border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:#fff}
+  .gcard h4{margin:0 0 4px;font-size:14px;color:var(--blue-d)}
+  .gcard p{margin:0;font-size:12.5px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <div class="brand"><h1>myGauge</h1><span>Programmer's Documentation · v1.0</span></div>
+    <a href="#over">Overview</a>
+    <div class="grp">Using it</div>
+    <a href="#install" class="h2">Install &amp; register</a>
+    <a href="#quick" class="h2">Quick start</a>
+    <a href="#shapes" class="h2">Gauge shapes</a>
+    <a href="#prompts" class="h2">Prompt reference</a>
+    <a href="#runtime" class="h2">Changing it at run time</a>
+    <a href="#anim" class="h2">Animation</a>
+    <a href="#zones" class="h2">Colored zones</a>
+    <a href="#reports" class="h2">On a report</a>
+    <div class="grp">How it works</div>
+    <a href="#arch" class="h2">Architecture</a>
+    <a href="#geometry" class="h2">Geometry &amp; drawing</a>
+    <div class="grp">Reference</div>
+    <a href="#api" class="h2">GaugeClass API</a>
+    <a href="#props" class="h2">Properties</a>
+    <a href="#trouble" class="h2">Troubleshooting</a>
+  </nav>
+  <main>
+    <header class="hero">
+      <h1>myGauge</h1>
+      <p>A configurable <b>analog gauge / dial</b> for Clarion windows and reports, drawn entirely
+         with native graphics primitives (<code>ARC</code>, <code>ELLIPSE</code>, <code>LINE</code>,
+         <code>POLYGON</code>, <code>SHOW</code>) into an IMAGE control. No images, no temp files,
+         no external dependencies &mdash; pure Clarion.</p>
+      <span class="pill">ABC &amp; Clarion · 45°–360° spans · zones · ticks · smooth animation · self-contained</span>
+    </header>
+    <div class="body">
+
+    <section id="over">
+      <h2>Overview <a href="#over" class="top">#</a></h2>
+      <p class="lead">myGauge turns any number &mdash; a KPI, a temperature, a percent-complete, a
+        battery level &mdash; into a polished speedometer-style dial painted directly onto a window or
+        a report band, computed and drawn on the local machine.</p>
+      <p>It is a sibling of <b>myPie</b> and <b>myQRDraw</b>: where those draw charts and codes, myGauge
+        draws an instrument. A single <code>GaugeClass</code> object holds the configuration (range,
+        span, colors, ticks, zones) and renders itself. The <b>myGauge</b> template puts a full
+        prompt UI in front of the class so you can drop a gauge on a window without writing a line of
+        graphics code &mdash; and still reach the object from any embed for run-time control.</p>
+      <table>
+        <tr><th>&nbsp;</th><th>myGauge</th></tr>
+        <tr><td>Needs internet</td><td><b>No</b> &mdash; everything is computed and drawn locally</td></tr>
+        <tr><td>How the image is made</td><td>Native ARC / ELLIPSE / LINE / POLYGON into an IMAGE control</td></tr>
+        <tr><td>Temp files</td><td>None</td></tr>
+        <tr><td>Arc spans</td><td>45°, 90°, 180°, 270°, 360°, or any custom start + sweep</td></tr>
+        <tr><td>Surfaces</td><td>Windows (live, animatable) and reports (per record)</td></tr>
+      </table>
+      <div class="callout note"><b>Three extensions, one class</b>
+        Add <b>myGaugeGlobal</b> once (it <code>INCLUDE</code>s the class). Drop <b>myGauge</b> on a
+        window for each dial, or <b>myGaugeReport</b> on a report to draw a gauge per record.</div>
+    </section>
+
+    <section id="install">
+      <h2>Install &amp; register <a href="#install" class="top">#</a></h2>
+      <ol>
+        <li>Copy <code>templates/myGauge/GaugeClass.inc</code> and <code>GaugeClass.clw</code> to a
+          folder on the Clarion redirection path (your app folder, or
+          <code>\clarion12\libsrc\win</code>). They <b>must be stored in ANSI</b>, not UTF-8.</li>
+        <li>Copy <code>templates/myGauge/myGauge.tpl</code> into your template folder.</li>
+        <li>In the IDE: <b>Setup ▸ Template Registry ▸ Register</b>, pick <code>myGauge.tpl</code>.</li>
+        <li>The chain <b>myGauge</b> registers three extensions: the global include, the window drawer,
+          and the report drawer.</li>
+      </ol>
+      <div class="callout tip"><b>Already on the redirection path</b>
+        If you installed the template set into <code>\clarion12</code>, the class files are already in
+        <code>libsrc\win</code> and the <code>.tpl</code> in <code>accessory\template\win</code> &mdash;
+        just register the chain.</div>
+    </section>
+
+    <section id="quick">
+      <h2>Quick start <a href="#quick" class="top">#</a></h2>
+      <ol>
+        <li>On the <b>global Extensions</b> for the application, add <b>myGauge - Global</b> (once).</li>
+        <li>Put an <code>IMAGE</code> control on your window where the dial should appear (give it a
+          sensible size &mdash; the gauge fills it).</li>
+        <li>On that window's <b>procedure Extensions</b>, add <b>myGauge - Draw a gauge on this window</b>.</li>
+        <li>Set the <b>Image control to draw into</b>, the <b>Range</b> (min/max), pick a <b>style</b>,
+          and either type an <b>initial value</b> or tick <b>Value is a variable</b> and name the field.</li>
+        <li>Compile and run. The gauge paints on <code>EVENT:OpenWindow</code> and repaints when the
+          window is resized.</li>
+      </ol>
+      <p>That is the whole no-code path. Everything below is for going further.</p>
+    </section>
+
+    <section id="shapes">
+      <h2>Gauge shapes <a href="#shapes" class="top">#</a></h2>
+      <p>The <b>style</b> drop-list picks a preset arc. Each preset sets the start angle, sweep, and
+        where the pivot sits inside the control so the dial is well-framed:</p>
+      <div class="grid">
+        <div class="gcard"><h4>270° Speedometer</h4><p>The default. Classic dial, opens at the bottom.</p></div>
+        <div class="gcard"><h4>180° Semicircle</h4><p>A half-dial sitting on its diameter.</p></div>
+        <div class="gcard"><h4>360° Full dial</h4><p>A complete circle &mdash; clocks, compasses.</p></div>
+        <div class="gcard"><h4>90° Quarter</h4><p>A corner gauge; pivot tucked low-left.</p></div>
+        <div class="gcard"><h4>45° Narrow arc</h4><p>A shallow band for tight layouts.</p></div>
+        <div class="gcard"><h4>Custom</h4><p>Your own start angle + sweep (deg).</p></div>
+      </div>
+      <p>Angles use the math convention: <b>0° is 3 o'clock</b> and positive is counter-clockwise.
+        A <b>negative sweep</b> goes clockwise &mdash; so the speedometer is start <code>225</code>,
+        sweep <code>-270</code> (from upper-left, clockwise round the bottom to upper-right).</p>
+    </section>
+
+    <section id="prompts">
+      <h2>Prompt reference <a href="#prompts" class="top">#</a></h2>
+      <h3>Window gauge — General</h3>
+      <table>
+        <tr><th>Prompt</th><th>Meaning</th></tr>
+        <tr><td>Object name</td><td>The <code>GaugeClass</code> instance label in the procedure's data. Defaults to <code>Gauge</code>+instance number so multiple gauges never clash.</td></tr>
+        <tr><td>Image control to draw into</td><td>The IMAGE control that receives the drawing.</td></tr>
+        <tr><td>Gauge style</td><td>Arc preset (see <a href="#shapes">Gauge shapes</a>) or Custom.</td></tr>
+        <tr><td>Custom start / sweep</td><td>Shown only for Custom: the start angle and signed sweep in degrees.</td></tr>
+        <tr><td>Minimum / Maximum</td><td>The value range mapped across the sweep.</td></tr>
+        <tr><td>Value is a variable</td><td>If ticked, the needle reads a field/expression; otherwise it uses a fixed initial value.</td></tr>
+      </table>
+      <h3>Ticks &amp; text</h3>
+      <table>
+        <tr><th>Prompt</th><th>Meaning</th></tr>
+        <tr><td>Major ticks</td><td>Number of large divisions (and label positions) across the range.</td></tr>
+        <tr><td>Minor ticks</td><td>Small divisions drawn between each pair of majors.</td></tr>
+        <tr><td>Show tick labels / Label decimals</td><td>Numeric labels at major ticks, and their decimal places.</td></tr>
+        <tr><td>Title / Units text</td><td>Caption above the readout and the unit suffix on the value.</td></tr>
+        <tr><td>Show numeric value / Value decimals</td><td>The big digital readout and its precision.</td></tr>
+      </table>
+      <h3>Look</h3>
+      <table>
+        <tr><th>Prompt</th><th>Meaning</th></tr>
+        <tr><td>Needle style / width / color</td><td>Triangle or thin line, its thickness, and color.</td></tr>
+        <tr><td>Show face circle / Show rim</td><td>Optional filled face and outer rim ring.</td></tr>
+        <tr><td>Face / Track / Tick / Text color</td><td>The dial face, the empty arc, the ticks, and the text.</td></tr>
+        <tr><td>Animate the needle</td><td>Eases the needle to new values using the window timer.</td></tr>
+        <tr><td>Timer interval / Step per tick</td><td>How often the timer fires and how far the needle moves each tick.</td></tr>
+      </table>
+      <h3>Zones</h3>
+      <p>A repeatable list of colored bands (from value, to value, color) painted over the track &mdash;
+        e.g. green 0–60, amber 60–85, red 85–100.</p>
+    </section>
+
+    <section id="runtime">
+      <h2>Changing it at run time <a href="#runtime" class="top">#</a></h2>
+      <p>The object lives in the procedure's data, named as you set in the prompts. Call it from any
+        embed (a button, a <code>TakeAction</code>, after a browse refresh):</p>
+      <pre><span class="c">! instant update — set the value and repaint now</span>
+Gauge1.SetValue(<span class="t">PRE:Score</span>)
+Gauge1.Draw(<span class="t">?GaugeImage</span>)
+
+<span class="c">! or, if the value sits in a field, just call the generated refresh routine</span>
+<span class="k">DO</span> Refresh:Gauge1
+
+<span class="c">! retune it live</span>
+Gauge1.SetRange(<span class="s">0</span>, <span class="s">250</span>)
+Gauge1.TrackColor = <span class="t">COLOR:Silver</span>
+Gauge1.Draw(<span class="t">?GaugeImage</span>)</pre>
+      <div class="callout note"><b>Refresh:&lt;Object&gt; routine</b>
+        For every window gauge the template generates a <code>Refresh:</code><i>ObjectName</i> ROUTINE.
+        It re-reads the value field (if any) and redraws &mdash; the simplest way to update a
+        non-animated gauge after the underlying field changes.</div>
+    </section>
+
+    <section id="anim">
+      <h2>Animation <a href="#anim" class="top">#</a></h2>
+      <p>Tick <b>Animate the needle</b> and the gauge eases toward new values instead of snapping. It
+        works through the <b>window timer</b>:</p>
+      <ul>
+        <li>On open, the template sets <code>0{PROP:Timer}</code> to your interval.</li>
+        <li>Each <code>EVENT:Timer</code> the gauge calls <code>AnimateTo()</code> (if the value is a
+          field) then <code>AnimStep()</code>, which moves the needle one step toward the target and
+          repaints. <code>AnimStep()</code> returns 1 while still moving, 0 when settled.</li>
+        <li><b>Step per tick</b> is a percent of the full range, so the sweep speed is independent of
+          the range size.</li>
+      </ul>
+      <div class="callout warn"><b>One timer per window</b>
+        A window has a single timer. If another template or your own code also uses
+        <code>PROP:Timer</code>, share it: call the gauge's <code>AnimStep()</code> from your existing
+        <code>EVENT:Timer</code> handler instead of enabling the template's animation.</div>
+      <pre><span class="c">! drive animation from your own timer</span>
+<span class="k">OF</span> EVENT:Timer
+  Gauge1.AnimateTo(<span class="t">PRE:Live</span>)
+  Gauge1.AnimStep()</pre>
+    </section>
+
+    <section id="zones">
+      <h2>Colored zones <a href="#zones" class="top">#</a></h2>
+      <p>Zones are colored bands over a value range, drawn on top of the empty track and under the
+        ticks. Add them in the <b>Zones</b> tab, or at run time:</p>
+      <pre>Gauge1.ClearZones()
+Gauge1.AddZone(<span class="s">0</span>,  <span class="s">60</span>,  <span class="t">COLOR:Green</span>)
+Gauge1.AddZone(<span class="s">60</span>, <span class="s">85</span>,  <span class="t">0012A8E8H</span>)   <span class="c">! amber</span>
+Gauge1.AddZone(<span class="s">85</span>, <span class="s">100</span>, <span class="t">COLOR:Red</span>)
+Gauge1.Draw(<span class="t">?GaugeImage</span>)</pre>
+      <p>Up to 16 zones are stored per gauge. Each zone is just a <code>Band</code> &mdash; a thick
+        <code>ARC</code> &mdash; so they cost almost nothing to draw.</p>
+    </section>
+
+    <section id="reports">
+      <h2>On a report <a href="#reports" class="top">#</a></h2>
+      <p>Add <b>myGauge - Draw a gauge on this REPORT</b> to a report procedure. Put an IMAGE control
+        in a detail (or group) band and select it in the <b>Image control</b> picker &mdash; the list
+        is populated from the report's own IMAGE controls.</p>
+      <p>The template draws the gauge for <b>each record</b> at <code>%BeforePrint</code>, reading your
+        value field, with the report band as the target:</p>
+      <pre>  Gauge.SetValue(<span class="t">PRE:Rating</span>)
+  <span class="k">SETTARGET</span>(Report)        <span class="c">! draw into the report band, not the screen</span>
+  Gauge.Paint(<span class="t">?RptGaugeImage</span>)
+  <span class="k">SETTARGET</span>()</pre>
+      <div class="callout note"><b>Paint vs Draw</b>
+        <code>Draw()</code> retargets the named IMAGE control and clears it &mdash; right for windows.
+        <code>Paint()</code> draws into whatever target is current &mdash; right for reports, where the
+        template has already called <code>SETTARGET(Report)</code>.</div>
+    </section>
+
+    <section id="arch">
+      <h2>Architecture <a href="#arch" class="top">#</a></h2>
+      <div class="filetree">templates/myGauge/
+├─ <b>GaugeClass.inc</b>   the class: properties, equates, method prototypes
+├─ <b>GaugeClass.clw</b>   the implementation (geometry + drawing)
+└─ <b>myGauge.tpl</b>      three extensions: global include, window, report</div>
+      <p>The class is self-contained the same way myQRDraw's is: a <code>CLASS,TYPE,MODULE,LINK</code>
+        whose <code>.clw</code> opens with a bare <code>MEMBER</code> and a module-level
+        <code>MAP</code>, so the Clarion graphics built-ins in <code>BUILTINS.CLW</code> resolve. Each
+        gauge on a window is its <b>own local object</b>, so multiple gauges per window or report just
+        work &mdash; each template instance declares and drives its own instance.</p>
+    </section>
+
+    <section id="geometry">
+      <h2>Geometry &amp; drawing <a href="#geometry" class="top">#</a></h2>
+      <p>Everything is derived from the control's size at draw time (<code>GETPOSITION</code>), so the
+        gauge scales with its IMAGE control and survives a resize.</p>
+      <ul>
+        <li><b>Value → angle.</b> <code>angle = StartAngle + ((v − Min) / (Max − Min)) × Sweep</code>.
+          Angles are kept un-normalized (they may be negative or &gt; 360) so they stay monotonic along
+          the sweep and never trip over the 0/360 boundary.</li>
+        <li><b>Screen Y.</b> Y grows downward, so a point at math angle θ is
+          <code>(cx + r·cos θ, cy − r·sin θ)</code>. Native <code>SIN</code>/<code>COS</code> do the
+          trig &mdash; no lookup table.</li>
+        <li><b>Bands</b> (track + zones) are a thick-pen <code>ARC</code>; <b>ticks</b> are
+          <code>LINE</code>s; <b>labels / title / readout</b> are <code>SHOW</code>; the <b>triangle
+          needle</b> is a 3-point <code>POLYGON</code> (a thick <code>LINE</code> for the line style);
+          the <b>hub</b> is a filled <code>ELLIPSE</code>.</li>
+      </ul>
+    </section>
+
+    <section id="api">
+      <h2>GaugeClass API <a href="#api" class="top">#</a></h2>
+      <table>
+        <tr><th>Method</th><th>Does</th></tr>
+        <tr><td><code>SetRange(min, max)</code></td><td>Sets the value range mapped across the sweep.</td></tr>
+        <tr><td><code>SetValue(v)</code></td><td>Sets the value instantly (clamped to range); no easing.</td></tr>
+        <tr><td><code>AnimateTo(target)</code></td><td>Sets the animation target; the needle eases there on each <code>AnimStep</code>.</td></tr>
+        <tr><td><code>SetSpan(start, sweep)</code></td><td>Sets a custom start angle and signed sweep (degrees).</td></tr>
+        <tr><td><code>Preset(style)</code></td><td>Applies an arc preset: <code>Gauge:Arc180/270/360/90/45</code>.</td></tr>
+        <tr><td><code>AddZone(from, to, color)</code></td><td>Adds a colored band over a value range (max 16).</td></tr>
+        <tr><td><code>ClearZones()</code></td><td>Removes all zones.</td></tr>
+        <tr><td><code>Draw(imageFeq)</code></td><td>Targets the IMAGE control, clears it, and paints &mdash; for windows.</td></tr>
+        <tr><td><code>Paint(imageFeq)</code></td><td>Paints into the current target &mdash; for reports (after <code>SETTARGET</code>).</td></tr>
+        <tr><td><code>AnimStep()</code></td><td>Eases <code>Value</code> toward <code>Target</code>, repaints; returns 1 while moving.</td></tr>
+      </table>
+    </section>
+
+    <section id="props">
+      <h2>Properties <a href="#props" class="top">#</a></h2>
+      <p>Set any of these before a <code>Draw</code>/<code>Paint</code> to override the prompt defaults:</p>
+      <table>
+        <tr><th>Group</th><th>Properties</th></tr>
+        <tr><td>Range / value</td><td><code>MinVal</code>, <code>MaxVal</code>, <code>Value</code>, <code>Target</code></td></tr>
+        <tr><td>Geometry</td><td><code>StartAngle</code>, <code>SweepAngle</code>, <code>PivotXPct</code>, <code>PivotYPct</code>, <code>RadiusPct</code>, <code>TrackPct</code></td></tr>
+        <tr><td>Colors</td><td><code>BackColor</code>, <code>FaceColor</code>, <code>RimColor</code>, <code>RimWidth</code>, <code>TrackColor</code>, <code>NeedleColor</code>, <code>HubColor</code>, <code>TickColor</code>, <code>TextColor</code>, <code>LabelColor</code></td></tr>
+        <tr><td>Toggles</td><td><code>ShowFace</code>, <code>ShowRim</code>, <code>ShowTrack</code>, <code>ShowValue</code>, <code>ShowLabels</code></td></tr>
+        <tr><td>Ticks / text</td><td><code>MajorTicks</code>, <code>MinorTicks</code>, <code>ValueDP</code>, <code>LabelDP</code>, <code>Title</code>, <code>Units</code></td></tr>
+        <tr><td>Needle / anim</td><td><code>NeedleStyle</code>, <code>NeedleLenPct</code>, <code>NeedleWidth</code>, <code>AnimStepPct</code></td></tr>
+      </table>
+      <div class="callout tip"><b>Set <code>BackColor = COLOR:None</code></b> to leave the IMAGE control's
+        own background untouched (useful over a themed window or a report band).</div>
+    </section>
+
+    <section id="trouble">
+      <h2>Troubleshooting <a href="#trouble" class="top">#</a></h2>
+      <table>
+        <tr><th>Symptom</th><th>Cause / fix</th></tr>
+        <tr><td>Nothing draws</td><td>The <b>Image control</b> prompt isn't set, or the IMAGE has zero size. Give the control a real width/height.</td></tr>
+        <tr><td>Template won't register</td><td>A literal <code>%</code> in an emitted line must be <code>%%</code>; a literal <code>&lt;</code> in a Clarion string must be <code>&lt;&lt;</code>. Re-save the class files as <b>ANSI</b>, not UTF-8.</td></tr>
+        <tr><td>"Unresolved external" on a built-in</td><td>The <code>.clw</code> must open with a bare <code>MEMBER</code> and a module-level <code>MAP</code> so <code>BUILTINS.CLW</code> resolves. Don't remove them.</td></tr>
+        <tr><td>Needle doesn't move</td><td>Animation needs the window timer. Either tick <b>Animate</b>, or call <code>AnimStep()</code> from your own <code>EVENT:Timer</code>.</td></tr>
+        <tr><td>Gauge clipped on resize</td><td>Lower <code>RadiusPct</code>, or pick a preset whose pivot suits the control's aspect ratio.</td></tr>
+        <tr><td>Report gauge blank</td><td>Make sure the IMAGE is in a band that prints and the draw is wrapped in <code>SETTARGET(Report)</code> … <code>SETTARGET()</code>.</td></tr>
+      </table>
+    </section>
+
+    </div>
+    <footer>myGauge · Programmer's Documentation · part of the templatemaker template set ·
+      pure Clarion, no external dependencies.</footer>
+  </main>
+</div>
+</body>
+</html>

@@ -53,6 +53,10 @@ templates/                      # ready-to-register Clarion templates
     myBackground.tpl
   myQR/                         #   QR code into an image control, auto-refresh (see below)
     myQR.tpl
+  myGauge/                      #   analog gauge/dial on windows and reports (see below)
+    GaugeClass.inc              #     the gauge class (config + method prototypes)
+    GaugeClass.clw              #     the implementation (geometry + native drawing)
+    myGauge.tpl                 #     global include + window + report extensions
 designer/ClarionTplDesigner/    # WPF visual designer for the prompt UI (see below)
 installer/                      # builds the installer + a portable single-file exe
 README.md
@@ -232,6 +236,22 @@ the prime field GF(929), and GF(2^n) for Aztec). Full **developer's manual** (in
 symbology rules, drawing model, multi-DLL, troubleshooting) is in
 [`docs/myBarcodeGen-template.html`](docs/myBarcodeGen-template.html).
 
+### `templates/myGauge/` — analog gauges/dials on windows and reports
+A configurable **analog gauge** drawn entirely with native Clarion graphics (`ARC`, `ELLIPSE`, `LINE`,
+`POLYGON`, `SHOW`) into an `IMAGE` control — the same offline, no-dependency approach as myPie and myQRDraw.
+A single self-contained ANSI class, **`GaugeClass`**, holds the configuration (range, span, colors, ticks,
+zones) and renders itself; each gauge on a window is its **own local object**, so multiple dials per window
+or report just work. Pick an **arc style** — 45°, 90°, 180°, 270° (speedometer), 360°, or a **custom** start
++ signed sweep — set the **min/max range**, then drive the needle from a **literal** or any **variable/field**.
+Configurable everything: major/minor **ticks** with numeric labels, a digital **value readout**, **title/units**
+text, a **triangle or line needle**, face/rim/track/tick/text colors, up to 16 colored **zones** (e.g. green
+0–60 / amber 60–85 / red 85–100), and **smooth needle animation** via the window timer (`AnimateTo` +
+`AnimStep`). Three extensions: **myGaugeGlobal** (include the class once), **myGauge** for **windows** (redraw
+on open/resize, optional animation, a generated `Refresh:<Object>` routine), and **myGaugeReport** for
+**reports** (a gauge per record, drawn at `%BeforePrint` under `SETTARGET(Report)`). Copy `GaugeClass.inc` +
+`GaugeClass.clw` (ANSI) to the redirection path. Full programmer's documentation — shapes, prompts, the class
+API, run-time control, and troubleshooting — is in [`docs/myGauge-template.html`](docs/myGauge-template.html).
+
 ## Install
 
 Copy the two folders into your Claude Code config (`~/.claude` on macOS/Linux,
@@ -329,6 +349,20 @@ chosen from one drop-list. Five self-contained ANSI Clarion classes (`BarcodeCla
 (GF(256) 0x11D/0x12D, the prime field GF(929), and GF(2ⁿ) for Aztec); PDF417's 3×929 pattern table is packed
 into the class. Full developer's manual in
 [`docs/myBarcodeGen-template.html`](docs/myBarcodeGen-template.html).
+
+**myGauge — analog gauges on windows and reports.** A new [`templates/myGauge/`](templates/myGauge/) draws a
+configurable **speedometer-style dial** entirely with native Clarion graphics (`ARC`/`ELLIPSE`/`LINE`/
+`POLYGON`/`SHOW`) into an `IMAGE` control — same offline, no-dependency approach as myPie/myQRDraw, but pure
+drawing (no encoder, so no C# oracle needed). One self-contained ANSI class, **`GaugeClass`** (`.inc`/`.clw`),
+holds the configuration and renders itself; each gauge is a **local object**, so multiple dials per window/report
+just work. Arc **styles** 45°/90°/180°/270°/360° or **custom** start + signed sweep; min/max **range** driven by
+a literal or any **field**; major/minor **ticks** + labels, a **value readout**, **title/units**, a triangle or
+line **needle**, full **color** control, up to 16 colored **zones**, and **smooth animation** via the window
+timer (`AnimateTo` + `AnimStep`). Three extensions — **myGaugeGlobal** (include once), **myGauge** for windows
+(redraw on open/resize, optional animation, a generated `Refresh:<Object>` routine) and **myGaugeReport** for
+reports (per record at `%BeforePrint` under `SETTARGET(Report)`). The geometry keeps angles un-normalized to
+avoid the 0/360 wrap and maps screen-Y downward (`cy − r·sin θ`). Full programmer's manual in
+[`docs/myGauge-template.html`](docs/myGauge-template.html).
 
 To package everything (designer **+** templates **+** skill **+** agent) into one deliverable — .NET is
 bundled in, so nothing needs pre-installing on the target:
