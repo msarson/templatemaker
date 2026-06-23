@@ -217,6 +217,17 @@ field laptops, air-gapped networks, and reports that must render with zero exter
 when an internet round-trip is acceptable. Full programmer's documentation is in
 [`docs/myQRDraw-template.html`](docs/myQRDraw-template.html).
 
+### `templates/myBarcodeGen/` — many barcode types, offline, drawn with BOX primitives
+A generalization of myQRDraw to **many symbologies**: the **linear (1D)** codes **Code 39, Code 128**
+(auto Code B / Code C), **Interleaved 2 of 5, EAN-13, UPC-A**, plus **QR** (reusing `QRCodeClass`). Same
+offline approach — encode at run time, draw with `BOX`es (1D = full-height bars + optional human-readable
+text; QR = a module grid). Pick the **Barcode type** from a drop-list; the rest is like myQRDraw (value
+literal-or-variable, colors, quiet zone), with **window** and **report** extensions. The 1D encoder is a
+self-contained Clarion class `BarcodeClass.inc`/`.clw` (ANSI), ported from the ZXing-validated C# reference
+[`designer/BarcodeCore/`](designer/BarcodeCore/) (23 round-trip tests). Copy the **four** class files
+(`BarcodeClass` + `QRCodeClass` .inc/.clw) to the redirection path. *2D matrix codes (Data Matrix, PDF417,
+Aztec) are planned as follow-on rounds.*
+
 ## Install
 
 Copy the two folders into your Claude Code config (`~/.claude` on macOS/Linux,

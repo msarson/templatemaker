@@ -12,6 +12,17 @@ public static class Linear
 {
     static void Run(List<bool> o, bool dark, int n) { for (int i = 0; i < n; i++) o.Add(dark); }
 
+    /// <summary>The concatenated lookup tables, for transcription into the Clarion BarcodeClass.</summary>
+    public static string DumpTables() =>
+        "C39SET=" + string.Concat(C39.Keys) + "\n" +
+        "C39ALL=" + string.Concat(C39.Values) + "\n" +
+        "ITFALL=" + string.Concat(ItfDigit) + "\n" +
+        "C128ALL=" + string.Concat(C128) + "\n" +
+        "EANL=" + string.Concat(L) + "\n" +
+        "EANG=" + string.Concat(G) + "\n" +
+        "EANR=" + string.Concat(R) + "\n" +
+        "EANPAR=" + string.Concat(Parity);
+
     // ===================== Code 39 (3 of 9) =====================
     // 9 elements per char (bar,space,... starting with bar), 3 of them wide; self-checking.
     static readonly Dictionary<char, string> C39 = new()
