@@ -221,21 +221,31 @@
 
     <section id="arch">
       <h2>Architecture <a href="#arch" class="top">#</a></h2>
-      <p>The global extension emits three things, guarded by its Disable check:</p>
+      <p>The encoder is a self-contained Clarion <b>class</b>, <code>QRCodeClass</code>, shipped as two
+        files beside the template:</p>
       <ul>
-        <li><b><code>%GlobalData</code></b> — the encoder's working arrays, all <code>QR:</code>-prefixed
-          and sized for the largest supported symbol (version 10 = 57×57): the module matrix, the
-          function-module map, the GF(256) log/antilog tables, codeword buffers, and the capacity table.</li>
-        <li><b><code>%GlobalMap</code></b> — short-form prototypes for every encoder procedure.</li>
-        <li><b><code>%ProgramProcedures</code></b> — the procedure bodies: the encoder and the public
-          <code>QRDraw()</code> helper.</li>
+        <li><b><code>QRCodeClass.inc</code></b> — the <code>CLASS,TYPE,MODULE(…),LINK(…)</code> declaration:
+          all working data as members (the 57×57 module matrix, the function map, the GF(256) tables,
+          codeword buffers, the capacity table) plus the method prototypes.</li>
+        <li><b><code>QRCodeClass.clw</code></b> — the method bodies. Because the class carries a
+          <code>LINK</code> attribute, this module is compiled and linked <i>automatically</i> — you don't
+          add it to the project.</li>
       </ul>
-      <p>The procedure extension adds a tiny per-window slice: a private repaint event, a value buffer,
-        a <code>myQRDrawRepaint</code> routine, and a handler at the top of <code>TakeWindowEvent</code>
-        that calls <code>QRDraw()</code> on open/resize — exactly the structure myPie uses.</p>
+      <p>So the global extension emits only two small things, guarded by its Disable check: an
+        <code>INCLUDE('QRCodeClass.INC')</code> at <code>%AfterGlobalIncludes</code>, and a single global
+        instance <code>QRCodeObj&nbsp;QRCodeClass</code> at <code>%GlobalData</code>. The encoder's code lives
+        in its own module — it <b>doesn't fill the program's global procedure area</b> — and its state lives
+        in the instance. The procedure extensions just call <code>QRCodeObj.Draw()</code> /
+        <code>.BuildMatrix()</code> / <code>.Paint()</code>.</p>
+      <div class="callout warn"><b>Two install steps for the class files</b>
+        Copy <code>QRCodeClass.inc</code> and <code>QRCodeClass.clw</code> to a folder on the Clarion
+        <b>redirection path</b> (your app folder, or <code>\clarion12\libsrc\win</code>), and keep them in
+        <b>ANSI</b> (not UTF-8) — the Clarion compiler expects ANSI source.</div>
       <div class="callout note"><b>Multi-DLL note</b>
-        Like myPie, the bodies live in <code>%ProgramProcedures</code> (the program module). For a
-        multi-DLL application, move the encoder to the root/shared DLL and export the prototypes.</div>
+        Tuned for a single-EXE app (the class <code>LINK</code>s its own <code>.clw</code> and the instance
+        is a plain global). For multi-DLL, move <code>QRCodeObj</code> to the root DLL (declare it
+        <code>EXTERNAL,DLL(…)</code> elsewhere and export it) and switch the class to the guarded
+        <code>LINK(,mode),DLL(mode)</code> form.</div>
     </section>
 
     <section id="encoder">

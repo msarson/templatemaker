@@ -208,9 +208,13 @@ report extension share the same encoder and `QRPaint()` drawing — only the dra
 
 The encoder (byte mode, **versions 1–10**, automatic version + mask) is a line-for-line port of the
 ZXing-validated C# reference in [`designer/QrCodeCore/`](designer/QrCodeCore/); its exact `HELLO WORLD`/ECC-M
-matrix is pinned by a golden test, and that is the same symbol the self-test draws. Choose myQRDraw for
-kiosks, point-of-sale, field laptops, air-gapped networks, and reports that must render with zero external
-dependencies; choose myQR when an internet round-trip is acceptable. Full programmer's documentation is in
+matrix is pinned by a golden test, and that is the same symbol the self-test draws. The encoder ships as a
+self-contained Clarion **class** — `QRCodeClass.inc` + `QRCodeClass.clw` (stored in **ANSI**) — so it compiles
+in its own module instead of filling the program's global procedure area; the global extension just
+`INCLUDE`s it and declares one `QRCodeObj` instance. Copy the two class files to a folder on the Clarion
+redirection path (your app folder or `\clarion12\libsrc\win`). Choose myQRDraw for kiosks, point-of-sale,
+field laptops, air-gapped networks, and reports that must render with zero external dependencies; choose myQR
+when an internet round-trip is acceptable. Full programmer's documentation is in
 [`docs/myQRDraw-template.html`](docs/myQRDraw-template.html).
 
 ## Install
